@@ -130,7 +130,7 @@ export async function getPublishedMenu(slug: string) {
     .where(eq(menuItems.storeId, store.id))
     .orderBy(menuItems.sortOrder);
 
-  const publishedItems = items.filter((i) => i.published);
+  const publishedItems = items.filter((i) => i.published && !i.hidden);
   const imageMap = await fetchImagesByMenuItemIds(
     publishedItems.map((i) => i.id)
   );

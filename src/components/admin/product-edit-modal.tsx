@@ -412,7 +412,7 @@ export function ProductEditModal({
                 className="rounded"
               />
               <span className="text-sm text-[#1a1612]">
-                Hidden from products grid
+                Hidden (not shown on public menu or main grid)
               </span>
             </label>
           </div>
