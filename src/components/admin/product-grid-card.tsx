@@ -42,7 +42,16 @@ export const ProductGridCard = forwardRef<HTMLElement, Props>(function ProductGr
     <article
       ref={ref}
       style={style}
-      className={`relative bg-white rounded-lg border border-[#e8e2d9] transition-all ${
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      className={`relative bg-white rounded-lg border border-[#e8e2d9] transition-all cursor-pointer touch-manipulation ${
         isDragging
           ? "opacity-40 shadow-lg z-10"
           : dimmed
@@ -106,11 +115,7 @@ export const ProductGridCard = forwardRef<HTMLElement, Props>(function ProductGr
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={onOpen}
-        className="w-full p-2 space-y-0.5 text-left touch-manipulation"
-      >
+      <div className="w-full p-2 space-y-0.5 text-left pointer-events-none">
         <h3 className="text-xs font-medium text-[#1a1612] leading-snug line-clamp-2 min-h-[2.5em]">
           {item.name}
         </h3>
@@ -120,7 +125,7 @@ export const ProductGridCard = forwardRef<HTMLElement, Props>(function ProductGr
         {tags.length > 0 && (
           <p className="text-[9px] text-[#9a8f82] truncate">{tags.join(" · ")}</p>
         )}
-      </button>
+      </div>
     </article>
   );
 });
