@@ -80,6 +80,11 @@ function runMigrations() {
       `ALTER TABLE menu_items ADD COLUMN display_image_id TEXT`
     );
   }
+  if (!menuCols.some((c) => c.name === "hidden")) {
+    sqlite.exec(
+      `ALTER TABLE menu_items ADD COLUMN hidden INTEGER DEFAULT 0 NOT NULL`
+    );
+  }
 
   const userCols = sqlite
     .prepare(`PRAGMA table_info(users)`)

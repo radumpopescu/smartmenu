@@ -50,6 +50,7 @@ type Props = {
     priceLabel: string | null;
     tags: string[];
     published: boolean;
+    hidden: boolean;
     sortOrder: number;
   }) => void;
   onUploadPhoto: (file: File) => void;
@@ -88,6 +89,7 @@ export function ProductEditModal({
   const [priceLabel, setPriceLabel] = useState(item.priceLabel ?? "");
   const [tagsInput, setTagsInput] = useState(parseTags(item.tags).join(", "));
   const [published, setPublished] = useState(item.published);
+  const [hidden, setHidden] = useState(item.hidden);
   const [sortOrder, setSortOrder] = useState(String(item.sortOrder));
   const [enhanceSourceId, setEnhanceSourceId] = useState<string>("");
 
@@ -105,6 +107,7 @@ export function ProductEditModal({
     setPriceLabel(item.priceLabel ?? "");
     setTagsInput(parseTags(item.tags).join(", "));
     setPublished(item.published);
+    setHidden(item.hidden);
     setSortOrder(String(item.sortOrder));
     const firstOriginal = item.images.find((i) => i.kind === "original");
     if (firstOriginal) setEnhanceSourceId(firstOriginal.id);
@@ -137,6 +140,7 @@ export function ProductEditModal({
       priceLabel: usePriceLabel ? priceLabel.trim() || null : null,
       tags,
       published,
+      hidden,
       sortOrder: parseInt(sortOrder, 10) || 0,
     });
   }
@@ -388,17 +392,30 @@ export function ProductEditModal({
             />
           </Field>
 
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={published}
-              onChange={(e) => setPublished(e.target.checked)}
-              className="rounded"
-            />
-            <span className="text-sm text-[#1a1612]">
-              Published on public menu
-            </span>
-          </label>
+          <div className="space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={published}
+                onChange={(e) => setPublished(e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-sm text-[#1a1612]">
+                Published on public menu
+              </span>
+            </label>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hidden}
+                onChange={(e) => setHidden(e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-sm text-[#1a1612]">
+                Hidden from products grid
+              </span>
+            </label>
+          </div>
         </form>
 
         <div className="shrink-0 px-5 py-4 border-t border-[#f0ebe3] flex flex-wrap gap-2 justify-between bg-[#fafaf8]">

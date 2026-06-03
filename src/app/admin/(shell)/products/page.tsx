@@ -10,6 +10,15 @@ export default async function ProductsPage() {
   if (!admin.activeStoreId) redirect("/admin");
 
   await migrateLegacyProductImages();
+  const { sqlite } = await import("@/db");
+  const menuCols = sqlite
+    .prepare(`PRAGMA table_info(menu_items)`)
+    .all() as { name: string }[];
+  if (!menuCols.some((c) => c.name === "hidden")) {
+    sqlite.exec(
+      `ALTER TABLE menu_items ADD COLUMN hidden INTEGER DEFAULT 0 NOT NULL`
+    );
+  }
   const menu = await getFullMenuForAdmin(admin.activeStoreId);
   const dishPrompt = await getDishEnhancementPrompt();
 

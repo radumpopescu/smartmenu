@@ -57,7 +57,11 @@ export function ProductsManager({
       return;
     }
     const { item } = await res.json();
-    setItems((prev) => prev.map((i) => (i.id === itemId ? item : i)));
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === itemId ? mergeItemFromApi(prev, item) : i
+      )
+    );
     router.refresh();
   }
 
@@ -93,6 +97,36 @@ export function ProductsManager({
     const { item } = await res.json();
     setItems((prev) => prev.map((i) => (i.id === itemId ? item : i)));
     router.refresh();
+  }
+
+  function mergeItemFromApi(
+    prev: MenuItemWithImages[],
+    item: MenuItemWithImages
+  ): MenuItemWithImages {
+    const existing = prev.find((i) => i.id === item.id);
+    return {
+      ...item,
+      images: item.images?.length ? item.images : (existing?.images ?? []),
+    };
+  }
+
+  async function setProductHidden(itemId: string, hidden: boolean) {
+    const res = await fetch(`/api/products/${itemId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hidden }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error ?? "Could not update visibility");
+      return;
+    }
+    const { item } = await res.json();
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === itemId ? mergeItemFromApi(prev, item) : i
+      )
+    );
   }
 
   async function setDisplayImage(
@@ -150,6 +184,7 @@ export function ProductsManager({
       priceLabel: string | null;
       tags: string[];
       published: boolean;
+      hidden: boolean;
       sortOrder: number;
     }
   ) {
@@ -271,6 +306,9 @@ export function ProductsManager({
           onCategoriesChange={setCategories}
           onItemsChange={setItems}
           onOpenProduct={setEditingId}
+          onToggleProductHidden={(id, hidden) =>
+            void setProductHidden(id, hidden)
+          }
           onError={setError}
         />
       )}

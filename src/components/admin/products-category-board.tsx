@@ -14,8 +14,13 @@ import {
   findProductContainer,
   moveProductBetweenContainers,
   reorderInContainer,
+  splitVisibleAndHidden,
   type ProductContainers,
 } from "@/lib/menu-board";
+import {
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -57,6 +62,7 @@ type Props = {
   onCategoriesChange: (categories: Category[]) => void;
   onItemsChange: (items: MenuItemWithImages[]) => void;
   onOpenProduct: (id: string) => void;
+  onToggleProductHidden: (id: string, hidden: boolean) => void;
   onError: (message: string) => void;
 };
 
@@ -68,6 +74,7 @@ export function ProductsCategoryBoard({
   onCategoriesChange,
   onItemsChange,
   onOpenProduct,
+  onToggleProductHidden,
   onError,
 }: Props) {
   const sortedCategories = useMemo(
@@ -94,8 +101,18 @@ export function ProductsCategoryBoard({
   const [addingCategory, setAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [savingCategory, setSavingCategory] = useState(false);
+  const [expandedHidden, setExpandedHidden] = useState<
+    Record<string, boolean>
+  >({});
 
   const isSearching = searchQuery.trim().length > 0;
+
+  function toggleHiddenSection(containerId: string) {
+    setExpandedHidden((prev) => ({
+      ...prev,
+      [containerId]: !prev[containerId],
+    }));
+  }
 
   useEffect(() => {
     setContainers(buildProductContainers(sortedCategories, items));
@@ -400,7 +417,11 @@ export function ProductsCategoryBoard({
                   itemsById={itemsById}
                   currency={currency}
                   dragDisabled={dragDisabled}
+                  isSearching={isSearching}
+                  showHidden={expandedHidden[category.id] ?? false}
+                  onToggleShowHidden={() => toggleHiddenSection(category.id)}
                   onOpenProduct={onOpenProduct}
+                  onToggleProductHidden={onToggleProductHidden}
                   onRename={(name) => void renameCategory(category.id, name)}
                   onDelete={() => void deleteCategory(category.id)}
                   canDelete={productIds.length === 0 && !isSearching}
@@ -416,8 +437,13 @@ export function ProductsCategoryBoard({
             itemsById={itemsById}
             currency={currency}
             dragDisabled={dragDisabled}
-            onOpenProduct={onOpenProduct}
             isSearching={isSearching}
+            showHidden={expandedHidden[UNCATEGORIZED_CONTAINER] ?? false}
+            onToggleShowHidden={() =>
+              toggleHiddenSection(UNCATEGORIZED_CONTAINER)
+            }
+            onOpenProduct={onOpenProduct}
+            onToggleProductHidden={onToggleProductHidden}
           />
         )}
 
@@ -451,7 +477,11 @@ function CategorySection({
   itemsById,
   currency,
   dragDisabled,
+  isSearching,
+  showHidden,
+  onToggleShowHidden,
   onOpenProduct,
+  onToggleProductHidden,
   onRename,
   onDelete,
   canDelete,
@@ -461,11 +491,20 @@ function CategorySection({
   itemsById: Record<string, MenuItemWithImages>;
   currency: string;
   dragDisabled: boolean;
+  isSearching: boolean;
+  showHidden: boolean;
+  onToggleShowHidden: () => void;
   onOpenProduct: (id: string) => void;
+  onToggleProductHidden: (id: string, hidden: boolean) => void;
   onRename: (name: string) => void;
   onDelete: () => void;
   canDelete: boolean;
 }) {
+  const { visibleIds, hiddenIds } = splitVisibleAndHidden(
+    productIds,
+    itemsById
+  );
+  const displayCount = isSearching ? productIds.length : visibleIds.length;
   const {
     attributes,
     listeners,
@@ -551,7 +590,10 @@ function CategorySection({
               {category.name}
             </h2>
             <span className="text-xs text-[#9a8f82] shrink-0">
-              {productIds.length}
+              {displayCount}
+              {!isSearching && hiddenIds.length > 0 && (
+                <span className="text-[#c9a962]"> +{hiddenIds.length} hidden</span>
+              )}
             </span>
             <button
               type="button"
@@ -581,33 +623,20 @@ function CategorySection({
           isOver ? "bg-[#faf6ee]" : ""
         }`}
       >
-        <SortableContext
-          items={productIds}
-          strategy={rectSortingStrategy}
-        >
-          {productIds.length === 0 ? (
-            <p className="text-xs text-[#9a8f82] py-4 text-center">
-              Drop products here
-            </p>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-              {productIds.map((id) => {
-                const item = itemsById[id];
-                if (!item) return null;
-                return (
-                  <SortableProductCard
-                    key={id}
-                    item={item}
-                    containerId={category.id}
-                    currency={currency}
-                    dragDisabled={dragDisabled}
-                    onOpen={() => onOpenProduct(id)}
-                  />
-                );
-              })}
-            </div>
-          )}
-        </SortableContext>
+        <ProductContainerGrid
+          containerId={category.id}
+          productIds={productIds}
+          visibleIds={isSearching ? productIds : visibleIds}
+          hiddenIds={isSearching ? [] : hiddenIds}
+          itemsById={itemsById}
+          currency={currency}
+          dragDisabled={dragDisabled}
+          showHidden={showHidden}
+          onToggleShowHidden={onToggleShowHidden}
+          onOpenProduct={onOpenProduct}
+          onToggleProductHidden={onToggleProductHidden}
+          emptyLabel="Drop products here"
+        />
       </div>
     </section>
   );
@@ -618,16 +647,26 @@ function UncategorizedSection({
   itemsById,
   currency,
   dragDisabled,
-  onOpenProduct,
   isSearching,
+  showHidden,
+  onToggleShowHidden,
+  onOpenProduct,
+  onToggleProductHidden,
 }: {
   productIds: string[];
   itemsById: Record<string, MenuItemWithImages>;
   currency: string;
   dragDisabled: boolean;
-  onOpenProduct: (id: string) => void;
   isSearching: boolean;
+  showHidden: boolean;
+  onToggleShowHidden: () => void;
+  onOpenProduct: (id: string) => void;
+  onToggleProductHidden: (id: string, hidden: boolean) => void;
 }) {
+  const { visibleIds, hiddenIds } = splitVisibleAndHidden(
+    productIds,
+    itemsById
+  );
   const { setNodeRef, isOver } = useDroppable({
     id: UNCATEGORIZED_CONTAINER,
     data: { type: "container" },
@@ -648,35 +687,122 @@ function UncategorizedSection({
         ref={setNodeRef}
         className={`p-3 min-h-[72px] ${isOver ? "bg-[#faf6ee]" : ""}`}
       >
-        <SortableContext
-          items={productIds}
-          strategy={rectSortingStrategy}
-        >
-          {productIds.length === 0 ? (
-            <p className="text-xs text-[#9a8f82] py-4 text-center">
-              {!isSearching ? "Drag products here to uncategorize" : "—"}
-            </p>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-              {productIds.map((id) => {
-                const item = itemsById[id];
-                if (!item) return null;
-                return (
-                  <SortableProductCard
-                    key={id}
-                    item={item}
-                    containerId={UNCATEGORIZED_CONTAINER}
-                    currency={currency}
-                    dragDisabled={dragDisabled}
-                    onOpen={() => onOpenProduct(id)}
-                  />
-                );
-              })}
-            </div>
-          )}
-        </SortableContext>
+        <ProductContainerGrid
+          containerId={UNCATEGORIZED_CONTAINER}
+          productIds={productIds}
+          visibleIds={isSearching ? productIds : visibleIds}
+          hiddenIds={isSearching ? [] : hiddenIds}
+          itemsById={itemsById}
+          currency={currency}
+          dragDisabled={dragDisabled}
+          showHidden={showHidden}
+          onToggleShowHidden={onToggleShowHidden}
+          onOpenProduct={onOpenProduct}
+          onToggleProductHidden={onToggleProductHidden}
+          emptyLabel={
+            !isSearching ? "Drag products here to uncategorize" : "—"
+          }
+        />
       </div>
     </section>
+  );
+}
+
+function ProductContainerGrid({
+  containerId,
+  productIds,
+  visibleIds,
+  hiddenIds,
+  itemsById,
+  currency,
+  dragDisabled,
+  showHidden,
+  onToggleShowHidden,
+  onOpenProduct,
+  onToggleProductHidden,
+  emptyLabel,
+}: {
+  containerId: string;
+  productIds: string[];
+  visibleIds: string[];
+  hiddenIds: string[];
+  itemsById: Record<string, MenuItemWithImages>;
+  currency: string;
+  dragDisabled: boolean;
+  showHidden: boolean;
+  onToggleShowHidden: () => void;
+  onOpenProduct: (id: string) => void;
+  onToggleProductHidden: (id: string, hidden: boolean) => void;
+  emptyLabel: string;
+}) {
+  return (
+    <SortableContext items={productIds} strategy={rectSortingStrategy}>
+      {productIds.length === 0 ? (
+        <p className="text-xs text-[#9a8f82] py-4 text-center">{emptyLabel}</p>
+      ) : (
+        <div className="space-y-3">
+          {visibleIds.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              {visibleIds.map((id) => (
+                <SortableProductCard
+                  key={id}
+                  item={itemsById[id]!}
+                  containerId={containerId}
+                  currency={currency}
+                  dragDisabled={dragDisabled}
+                  dimmed={false}
+                  onOpen={() => onOpenProduct(id)}
+                  onToggleHidden={() => onToggleProductHidden(id, true)}
+                />
+              ))}
+            </div>
+          ) : hiddenIds.length > 0 && !showHidden ? (
+            <p className="text-xs text-[#9a8f82] py-2 text-center">
+              All products in this section are hidden
+            </p>
+          ) : null}
+
+          {hiddenIds.length > 0 && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={onToggleShowHidden}
+                className="w-full flex items-center justify-center gap-1.5 py-2.5 px-3 text-xs font-medium text-[#5c534a] bg-[#f8f6f3] hover:bg-[#f0ebe3] border border-[#e8e2d9] rounded-lg touch-manipulation min-h-[44px] transition-colors"
+              >
+                {showHidden ? (
+                  <>
+                    <ChevronUp size={14} />
+                    Hide hidden
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown size={14} />
+                    +{hiddenIds.length} hidden
+                  </>
+                )}
+              </button>
+
+              {showHidden && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 pt-1">
+                  {hiddenIds.map((id) => (
+                    <SortableProductCard
+                      key={id}
+                      item={itemsById[id]!}
+                      containerId={containerId}
+                      currency={currency}
+                      dragDisabled={dragDisabled}
+                      dimmed
+                      onOpen={() => onOpenProduct(id)}
+                      onToggleHidden={() => onToggleProductHidden(id, false)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </SortableContext>
   );
 }
 
@@ -685,13 +811,17 @@ function SortableProductCard({
   containerId,
   currency,
   dragDisabled,
+  dimmed,
   onOpen,
+  onToggleHidden,
 }: {
   item: MenuItemWithImages;
   containerId: string;
   currency: string;
   dragDisabled: boolean;
+  dimmed?: boolean;
   onOpen: () => void;
+  onToggleHidden?: () => void;
 }) {
   const {
     attributes,
@@ -721,10 +851,11 @@ function SortableProductCard({
       imageCount={item.images.length}
       onOpen={onOpen}
       isDragging={isDragging}
+      isHidden={item.hidden}
+      dimmed={dimmed}
+      onToggleHidden={onToggleHidden}
       dragHandleProps={
-        dragDisabled
-          ? undefined
-          : { ...attributes, ...listeners }
+        dragDisabled ? undefined : { ...attributes, ...listeners }
       }
     />
   );

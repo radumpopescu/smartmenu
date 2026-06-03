@@ -100,6 +100,8 @@ export const menuItems = sqliteTable("menu_items", {
   enhancedImageUrl: text("enhanced_image_url"),
   displayImageId: text("display_image_id"),
   published: integer("published", { mode: "boolean" }).notNull().default(true),
+  /** Hidden from admin grid (still editable; public menu uses `published`) */
+  hidden: integer("hidden", { mode: "boolean" }).notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()

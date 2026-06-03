@@ -3,7 +3,7 @@
 import type { MenuItemWithImages } from "@/lib/product-image-display";
 import { formatPrice, parseTags } from "@/lib/utils";
 import Image from "next/image";
-import { ImageOff, GripVertical } from "lucide-react";
+import { ImageOff, GripVertical, EyeOff, Eye } from "lucide-react";
 import { forwardRef } from "react";
 
 type Props = {
@@ -14,6 +14,9 @@ type Props = {
   onOpen: () => void;
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
   isDragging?: boolean;
+  isHidden?: boolean;
+  dimmed?: boolean;
+  onToggleHidden?: () => void;
   style?: React.CSSProperties;
 };
 
@@ -26,6 +29,9 @@ export const ProductGridCard = forwardRef<HTMLElement, Props>(function ProductGr
     onOpen,
     dragHandleProps,
     isDragging,
+    isHidden,
+    dimmed,
+    onToggleHidden,
     style,
   },
   ref
@@ -36,10 +42,12 @@ export const ProductGridCard = forwardRef<HTMLElement, Props>(function ProductGr
     <article
       ref={ref}
       style={style}
-      className={`relative bg-white rounded-lg border border-[#e8e2d9] transition-shadow ${
+      className={`relative bg-white rounded-lg border border-[#e8e2d9] transition-all ${
         isDragging
           ? "opacity-40 shadow-lg z-10"
-          : "hover:border-[#d4cfc6] hover:shadow-sm"
+          : dimmed
+            ? "opacity-45 hover:opacity-60 border-[#e8e2d9]"
+            : "hover:border-[#d4cfc6] hover:shadow-sm"
       }`}
     >
       <div className="relative aspect-square bg-[#f0ebe3] rounded-t-lg overflow-hidden">
@@ -59,7 +67,7 @@ export const ProductGridCard = forwardRef<HTMLElement, Props>(function ProductGr
           </div>
         )}
         {item.displayImageId && (
-          <span className="absolute top-1 left-1 text-[9px] bg-[#1a1612] text-white px-1 rounded font-medium pointer-events-none">
+          <span className="absolute bottom-1 right-1 text-[9px] bg-[#1a1612] text-white px-1 rounded font-medium pointer-events-none">
             menu
           </span>
         )}
@@ -67,6 +75,23 @@ export const ProductGridCard = forwardRef<HTMLElement, Props>(function ProductGr
           <span className="absolute bottom-1 left-1 text-[9px] bg-white/90 text-[#1a1612] px-1 rounded font-medium border border-[#e8e2d9] pointer-events-none">
             {imageCount} photos
           </span>
+        )}
+        {onToggleHidden && (
+          <button
+            type="button"
+            aria-label={isHidden ? "Show in grid" : "Hide from grid"}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleHidden();
+            }}
+            className={`absolute top-1 left-1 p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-md border shadow-sm touch-manipulation ${
+              isHidden
+                ? "bg-[#faf6ee] border-[#c9a962]/50 text-[#1a1612]"
+                : "bg-white/95 border-[#e8e2d9] text-[#5c534a] hover:text-[#1a1612]"
+            }`}
+          >
+            {isHidden ? <Eye size={14} /> : <EyeOff size={14} />}
+          </button>
         )}
         {dragHandleProps && (
           <button

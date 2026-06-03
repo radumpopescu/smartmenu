@@ -66,6 +66,19 @@ export function applyContainersToItems(
   return next;
 }
 
+export function splitVisibleAndHidden(
+  productIds: string[],
+  itemsById: Record<string, { hidden: boolean }>
+): { visibleIds: string[]; hiddenIds: string[] } {
+  const visibleIds: string[] = [];
+  const hiddenIds: string[] = [];
+  for (const id of productIds) {
+    if (itemsById[id]?.hidden) hiddenIds.push(id);
+    else visibleIds.push(id);
+  }
+  return { visibleIds, hiddenIds };
+}
+
 export function findProductContainer(
   containers: ProductContainers,
   productId: string
