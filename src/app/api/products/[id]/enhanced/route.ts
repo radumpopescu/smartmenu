@@ -1,7 +1,6 @@
-import { auth } from "@/auth";
 import { db } from "@/db";
 import { menuItems } from "@/db/schema";
-import { getRestaurantForUser } from "@/lib/restaurant";
+import { requireApiActiveStore } from "@/lib/api-auth";
 import { saveUpload } from "@/lib/uploads";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -10,23 +9,15 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireApiActiveStore();
+  if ("error" in auth) return auth.error;
 
   const { id } = await params;
-  const restaurant = await getRestaurantForUser(session.user.id);
-  if (!restaurant) {
-    return NextResponse.json({ error: "No restaurant" }, { status: 400 });
-  }
 
   const [existing] = await db
     .select()
     .from(menuItems)
-    .where(
-      and(eq(menuItems.id, id), eq(menuItems.restaurantId, restaurant.id))
-    );
+    .where(and(eq(menuItems.id, id), eq(menuItems.storeId, auth.storeId)));
 
   if (!existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -40,7 +31,7 @@ export async function POST(
 
   const enhancedImageUrl = await saveUpload(
     file,
-    `dishes/${restaurant.id}/enhanced`
+    `dishes/${auth.storeId}/enhanced`
   );
 
   const [item] = await db
@@ -56,23 +47,15 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireApiActiveStore();
+  if ("error" in auth) return auth.error;
 
   const { id } = await params;
-  const restaurant = await getRestaurantForUser(session.user.id);
-  if (!restaurant) {
-    return NextResponse.json({ error: "No restaurant" }, { status: 400 });
-  }
 
   const [item] = await db
     .update(menuItems)
     .set({ enhancedImageUrl: null })
-    .where(
-      and(eq(menuItems.id, id), eq(menuItems.restaurantId, restaurant.id))
-    )
+    .where(and(eq(menuItems.id, id), eq(menuItems.storeId, auth.storeId)))
     .returning();
 
   if (!item) {

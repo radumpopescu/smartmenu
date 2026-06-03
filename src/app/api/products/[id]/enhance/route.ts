@@ -1,8 +1,7 @@
-import { auth } from "@/auth";
 import { db } from "@/db";
 import { menuItems } from "@/db/schema";
 import { enhanceDishImage, type ImageProvider } from "@/lib/image-enhance";
-import { getRestaurantForUser } from "@/lib/restaurant";
+import { requireApiActiveStore } from "@/lib/api-auth";
 import { saveBuffer } from "@/lib/uploads";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -16,23 +15,15 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireApiActiveStore();
+  if ("error" in auth) return auth.error;
 
   const { id } = await params;
-  const restaurant = await getRestaurantForUser(session.user.id);
-  if (!restaurant) {
-    return NextResponse.json({ error: "No restaurant" }, { status: 400 });
-  }
 
   const [item] = await db
     .select()
     .from(menuItems)
-    .where(
-      and(eq(menuItems.id, id), eq(menuItems.restaurantId, restaurant.id))
-    );
+    .where(and(eq(menuItems.id, id), eq(menuItems.storeId, auth.storeId)));
 
   if (!item) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -58,7 +49,7 @@ export async function POST(
     );
     const enhancedImageUrl = await saveBuffer(
       buffer,
-      `dishes/${restaurant.id}/enhanced`,
+      `dishes/${auth.storeId}/enhanced`,
       ".png"
     );
 

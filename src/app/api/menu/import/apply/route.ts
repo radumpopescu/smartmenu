@@ -1,7 +1,6 @@
-import { auth } from "@/auth";
 import { db } from "@/db";
 import { categories, menuItems } from "@/db/schema";
-import { getRestaurantForUser } from "@/lib/restaurant";
+import { requireApiActiveStore } from "@/lib/api-auth";
 import type { ExtractedMenu } from "@/lib/grok";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -29,18 +28,8 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const restaurant = await getRestaurantForUser(session.user.id);
-  if (!restaurant) {
-    return NextResponse.json(
-      { error: "Create a restaurant profile first" },
-      { status: 400 }
-    );
-  }
+  const auth = await requireApiActiveStore();
+  if ("error" in auth) return auth.error;
 
   const body = await request.json();
   const parsed = schema.safeParse(body);
@@ -49,14 +38,11 @@ export async function POST(request: Request) {
   }
 
   const { extracted, replaceExisting } = parsed.data;
+  const storeId = auth.storeId;
 
   if (replaceExisting) {
-    await db
-      .delete(menuItems)
-      .where(eq(menuItems.restaurantId, restaurant.id));
-    await db
-      .delete(categories)
-      .where(eq(categories.restaurantId, restaurant.id));
+    await db.delete(menuItems).where(eq(menuItems.storeId, storeId));
+    await db.delete(categories).where(eq(categories.storeId, storeId));
   }
 
   let categoryOrder = 0;
@@ -67,7 +53,7 @@ export async function POST(request: Request) {
     const [category] = await db
       .insert(categories)
       .values({
-        restaurantId: restaurant.id,
+        storeId,
         name: cat.name,
         sortOrder: categoryOrder++,
       })
@@ -77,7 +63,7 @@ export async function POST(request: Request) {
 
     for (const item of cat.items) {
       await db.insert(menuItems).values({
-        restaurantId: restaurant.id,
+        storeId,
         categoryId: category.id,
         name: item.name,
         description: item.description ?? null,

@@ -1,23 +1,16 @@
-import { auth } from "@/auth";
 import { db } from "@/db";
 import { menuItems } from "@/db/schema";
-import { getFullMenuForAdmin, getRestaurantForUser } from "@/lib/restaurant";
+import { requireApiActiveStore } from "@/lib/api-auth";
+import { getFullMenuForAdmin } from "@/lib/stores";
 import { saveUpload } from "@/lib/uploads";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireApiActiveStore();
+  if ("error" in auth) return auth.error;
 
-  const restaurant = await getRestaurantForUser(session.user.id);
-  if (!restaurant) {
-    return NextResponse.json({ categories: [], items: [] });
-  }
-
-  const menu = await getFullMenuForAdmin(restaurant.id);
+  const menu = await getFullMenuForAdmin(auth.storeId);
   return NextResponse.json(menu);
 }
 
@@ -31,15 +24,8 @@ const createSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const restaurant = await getRestaurantForUser(session.user.id);
-  if (!restaurant) {
-    return NextResponse.json({ error: "No restaurant" }, { status: 400 });
-  }
+  const auth = await requireApiActiveStore();
+  if ("error" in auth) return auth.error;
 
   const contentType = request.headers.get("content-type") ?? "";
 
@@ -53,13 +39,13 @@ export async function POST(request: Request) {
 
     let originalImageUrl: string | undefined;
     if (image instanceof File && image.size > 0) {
-      originalImageUrl = await saveUpload(image, `dishes/${restaurant.id}`);
+      originalImageUrl = await saveUpload(image, `dishes/${auth.storeId}`);
     }
 
     const [item] = await db
       .insert(menuItems)
       .values({
-        restaurantId: restaurant.id,
+        storeId: auth.storeId,
         name,
         description: description ? String(description) : null,
         categoryId: categoryId ? String(categoryId) : null,
@@ -80,7 +66,7 @@ export async function POST(request: Request) {
   const [item] = await db
     .insert(menuItems)
     .values({
-      restaurantId: restaurant.id,
+      storeId: auth.storeId,
       name: parsed.data.name,
       description: parsed.data.description ?? null,
       categoryId: parsed.data.categoryId ?? null,

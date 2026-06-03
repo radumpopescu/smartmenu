@@ -115,6 +115,15 @@ The prompt instructs the model to keep the **same dish** (no AI slop) and only i
 - All LLM/API calls append to **`llm.log`**: full **prompts** (from `prompts/*.txt`), sanitized inputs/outputs, token usage, estimated `cost_usd`. Override path via `LLM_LOG_PATH`. File is gitignored.
 - **Editable prompts** live in `prompts/` (not hardcoded). Loader: `src/lib/prompts.ts`. Restart dev server after edits.
 
+## Roles & stores
+
+| Role | Access |
+|------|--------|
+| **superadmin** | All stores, `/admin/stores`, `/admin/users`, full menu tools on active store |
+| **operator** | Only assigned stores (via `user_stores`), menu tools on active store |
+
+Active store is stored in cookie `smartmenu_active_store`. Dev login: dropdown on `/admin/login` (`dev-login` provider, development only).
+
 ## Out of scope (v1)
 
 - Multi-restaurant SaaS billing

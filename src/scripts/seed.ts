@@ -1,113 +1,174 @@
 import bcrypt from "bcryptjs";
 import { db, sqlite } from "@/db";
-import { users, restaurants, categories, menuItems } from "@/db/schema";
+import { users, stores, categories, menuItems, userStores } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import path from "path";
 
-async function main() {
+function runMigrations() {
   const migrationsFolder = path.join(process.cwd(), "drizzle");
   try {
     migrate(db, { migrationsFolder });
   } catch {
+    /* fresh install handled below */
+  }
+
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      name TEXT,
+      role TEXT NOT NULL DEFAULT 'operator',
+      created_at INTEGER DEFAULT (unixepoch()) NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS restaurants (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      tagline TEXT,
+      description TEXT,
+      accent_color TEXT DEFAULT '#c9a962',
+      published INTEGER DEFAULT 0 NOT NULL,
+      created_at INTEGER DEFAULT (unixepoch()) NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS user_stores (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      store_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      created_at INTEGER DEFAULT (unixepoch()) NOT NULL,
+      PRIMARY KEY (user_id, store_id)
+    );
+    CREATE TABLE IF NOT EXISTS categories (
+      id TEXT PRIMARY KEY,
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      sort_order INTEGER DEFAULT 0 NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS menu_items (
+      id TEXT PRIMARY KEY,
+      restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      category_id TEXT REFERENCES categories(id) ON DELETE SET NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      price_cents INTEGER,
+      price_label TEXT,
+      tags TEXT,
+      original_image_url TEXT,
+      enhanced_image_url TEXT,
+      published INTEGER DEFAULT 1 NOT NULL,
+      sort_order INTEGER DEFAULT 0 NOT NULL,
+      created_at INTEGER DEFAULT (unixepoch()) NOT NULL
+    );
+  `);
+
+  const userCols = sqlite
+    .prepare(`PRAGMA table_info(users)`)
+    .all() as { name: string }[];
+  if (!userCols.some((c) => c.name === "role")) {
+    sqlite.exec(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'operator'`);
+  }
+
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS user_stores (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      store_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+      created_at INTEGER DEFAULT (unixepoch()) NOT NULL,
+      PRIMARY KEY (user_id, store_id)
+    );
+  `);
+
+  const restaurantCols = sqlite
+    .prepare(`PRAGMA table_info(restaurants)`)
+    .all() as { name: string }[];
+  if (restaurantCols.some((c) => c.name === "user_id")) {
     sqlite.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        email TEXT NOT NULL UNIQUE,
-        password_hash TEXT NOT NULL,
-        name TEXT,
-        created_at INTEGER DEFAULT (unixepoch()) NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS restaurants (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        name TEXT NOT NULL,
-        slug TEXT NOT NULL UNIQUE,
-        tagline TEXT,
-        description TEXT,
-        accent_color TEXT DEFAULT '#c9a962',
-        published INTEGER DEFAULT 0 NOT NULL,
-        created_at INTEGER DEFAULT (unixepoch()) NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS categories (
-        id TEXT PRIMARY KEY,
-        restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
-        name TEXT NOT NULL,
-        sort_order INTEGER DEFAULT 0 NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS menu_items (
-        id TEXT PRIMARY KEY,
-        restaurant_id TEXT NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
-        category_id TEXT REFERENCES categories(id) ON DELETE SET NULL,
-        name TEXT NOT NULL,
-        description TEXT,
-        price_cents INTEGER,
-        price_label TEXT,
-        tags TEXT,
-        original_image_url TEXT,
-        enhanced_image_url TEXT,
-        published INTEGER DEFAULT 1 NOT NULL,
-        sort_order INTEGER DEFAULT 0 NOT NULL,
-        created_at INTEGER DEFAULT (unixepoch()) NOT NULL
-      );
+      INSERT OR IGNORE INTO user_stores (user_id, store_id)
+      SELECT user_id, id FROM restaurants WHERE user_id IS NOT NULL;
     `);
   }
+}
 
-  const email = (process.env.ADMIN_EMAIL ?? "admin@example.com").toLowerCase();
-  const password = process.env.ADMIN_PASSWORD ?? "changeme";
+async function upsertUser(
+  email: string,
+  password: string,
+  name: string,
+  role: "superadmin" | "operator"
+) {
   const hash = await bcrypt.hash(password, 12);
+  const normalized = email.toLowerCase();
+  const [existing] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, normalized));
 
-  const existing = await db.select().from(users).where(eq(users.email, email));
-  let userId: string;
-
-  if (existing.length === 0) {
-    const [user] = await db
-      .insert(users)
-      .values({ email, passwordHash: hash, name: "Admin" })
-      .returning();
-    userId = user.id;
-    console.log(`Created admin: ${email}`);
-  } else {
-    userId = existing[0].id;
+  if (existing) {
     await db
       .update(users)
-      .set({ passwordHash: hash })
-      .where(eq(users.id, userId));
-    console.log(`Updated admin password: ${email}`);
+      .set({ passwordHash: hash, name, role })
+      .where(eq(users.id, existing.id));
+    return existing.id;
   }
 
-  const [existingRestaurant] = await db
-    .select()
-    .from(restaurants)
-    .where(eq(restaurants.userId, userId));
+  const [created] = await db
+    .insert(users)
+    .values({ email: normalized, passwordHash: hash, name, role })
+    .returning();
+  return created.id;
+}
 
-  if (!existingRestaurant) {
-    const [restaurant] = await db
-      .insert(restaurants)
+async function main() {
+  runMigrations();
+
+  const superEmail = (process.env.ADMIN_EMAIL ?? "admin@example.com").toLowerCase();
+  const superPassword = process.env.ADMIN_PASSWORD ?? "changeme";
+  const superId = await upsertUser(
+    superEmail,
+    superPassword,
+    "Super Admin",
+    "superadmin"
+  );
+  console.log(`Superadmin: ${superEmail}`);
+
+  const operatorId = await upsertUser(
+    "operator@example.com",
+    "changeme",
+    "Store Operator",
+    "operator"
+  );
+  console.log(`Operator: operator@example.com / changeme`);
+
+  let [store] = await db
+    .select()
+    .from(stores)
+    .where(eq(stores.slug, "bistro-luna"));
+
+  if (!store) {
+    [store] = await db
+      .insert(stores)
       .values({
-        userId,
         name: "Bistro Luna",
         slug: "bistro-luna",
         tagline: "Seasonal plates · Evening service",
-        description: "A demo restaurant showcasing SmartMenu.",
+        description: "A demo store showcasing SmartMenu.",
         published: true,
         accentColor: "#c9a962",
       })
       .returning();
+    console.log(`Demo store: /${store.slug}`);
 
     const [starters] = await db
       .insert(categories)
-      .values({ restaurantId: restaurant.id, name: "To Start", sortOrder: 0 })
+      .values({ storeId: store.id, name: "To Start", sortOrder: 0 })
       .returning();
 
     const [mains] = await db
       .insert(categories)
-      .values({ restaurantId: restaurant.id, name: "Mains", sortOrder: 1 })
+      .values({ storeId: store.id, name: "Mains", sortOrder: 1 })
       .returning();
 
     await db.insert(menuItems).values([
       {
-        restaurantId: restaurant.id,
+        storeId: store.id,
         categoryId: starters.id,
         name: "Burrata & Heirloom Tomatoes",
         description:
@@ -117,7 +178,7 @@ async function main() {
         sortOrder: 0,
       },
       {
-        restaurantId: restaurant.id,
+        storeId: store.id,
         categoryId: starters.id,
         name: "Charred Octopus",
         description: "Romesco, crispy potatoes, smoked paprika.",
@@ -126,7 +187,7 @@ async function main() {
         sortOrder: 1,
       },
       {
-        restaurantId: restaurant.id,
+        storeId: store.id,
         categoryId: mains.id,
         name: "Duck Confit",
         description: "Cherry gastrique, wilted greens, pommes sarladaise.",
@@ -134,7 +195,7 @@ async function main() {
         sortOrder: 0,
       },
       {
-        restaurantId: restaurant.id,
+        storeId: store.id,
         categoryId: mains.id,
         name: "Wild Mushroom Risotto",
         description: "Porcini stock, parmesan, truffle finish.",
@@ -143,9 +204,12 @@ async function main() {
         sortOrder: 1,
       },
     ]);
-
-    console.log(`Demo restaurant: /${restaurant.slug}`);
   }
+
+  await db
+    .insert(userStores)
+    .values({ userId: operatorId, storeId: store.id })
+    .onConflictDoNothing();
 
   console.log("Seed complete.");
 }

@@ -1,7 +1,6 @@
-import { auth } from "@/auth";
 import { db } from "@/db";
-import { restaurants } from "@/db/schema";
-import { getRestaurantForUser } from "@/lib/restaurant";
+import { stores } from "@/db/schema";
+import { requireApiActiveStore } from "@/lib/api-auth";
 import { slugify } from "@/lib/utils";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -17,39 +16,19 @@ const updateSchema = z.object({
 });
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const restaurant = await getRestaurantForUser(session.user.id);
-  return NextResponse.json({ restaurant });
+  const auth = await requireApiActiveStore();
+  if ("error" in auth) return auth.error;
+  return NextResponse.json({ store: auth.store });
 }
 
 export async function PATCH(request: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireApiActiveStore();
+  if ("error" in auth) return auth.error;
 
   const body = await request.json();
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-  }
-
-  let restaurant = await getRestaurantForUser(session.user.id);
-  if (!restaurant) {
-    const slug = slugify(parsed.data.name ?? "my-restaurant");
-    const [created] = await db
-      .insert(restaurants)
-      .values({
-        userId: session.user.id,
-        name: parsed.data.name ?? "My Restaurant",
-        slug,
-      })
-      .returning();
-    restaurant = created;
   }
 
   const updates: Record<string, unknown> = {};
@@ -63,10 +42,10 @@ export async function PATCH(request: Request) {
     updates.published = parsed.data.published;
 
   const [updated] = await db
-    .update(restaurants)
+    .update(stores)
     .set(updates)
-    .where(eq(restaurants.id, restaurant.id))
+    .where(eq(stores.id, auth.storeId))
     .returning();
 
-  return NextResponse.json({ restaurant: updated });
+  return NextResponse.json({ store: updated });
 }

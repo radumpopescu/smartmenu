@@ -1,19 +1,19 @@
 "use client";
 
-import type { Category, MenuItem, Restaurant } from "@/db/schema";
+import type { Category, MenuItem, Store } from "@/db/schema";
 import { formatPrice, parseTags } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 type Props = {
-  restaurant: Restaurant;
+  store: Store;
   categories: Category[];
   items: MenuItem[];
 };
 
-export function PublicMenu({ restaurant, categories, items }: Props) {
-  const accent = restaurant.accentColor ?? "#c9a962";
+export function PublicMenu({ store, categories, items }: Props) {
+  const accent = store.accentColor ?? "#c9a962";
   const [activeCategory, setActiveCategory] = useState<string | "all">("all");
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
@@ -68,16 +68,16 @@ export function PublicMenu({ restaurant, categories, items }: Props) {
           Menu
         </p>
         <h1 className="font-[family-name:var(--font-display)] text-4xl leading-[1.1] relative">
-          {restaurant.name}
+          {store.name}
         </h1>
-        {restaurant.tagline && (
+        {store.tagline && (
           <p className="text-[#9a8f82] mt-3 text-lg relative">
-            {restaurant.tagline}
+            {store.tagline}
           </p>
         )}
-        {restaurant.description && (
+        {store.description && (
           <p className="text-[#6d6358] mt-4 text-sm leading-relaxed max-w-md relative">
-            {restaurant.description}
+            {store.description}
           </p>
         )}
       </header>
@@ -132,7 +132,7 @@ export function PublicMenu({ restaurant, categories, items }: Props) {
                     item={item}
                     accent={accent}
                     featured={sectionIndex === 0 && i === 0}
-                    slug={restaurant.slug}
+                    slug={store.slug}
                   />
                 ))}
               </div>
@@ -154,7 +154,7 @@ export function PublicMenu({ restaurant, categories, items }: Props) {
                   key={item.id}
                   item={item}
                   accent={accent}
-                  slug={restaurant.slug}
+                  slug={store.slug}
                 />
               ))}
             </div>

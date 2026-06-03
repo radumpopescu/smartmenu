@@ -1,16 +1,14 @@
-import { auth } from "@/auth";
-import { getRestaurantForUser, getFullMenuForAdmin } from "@/lib/restaurant";
+import { requireAdminContext } from "@/lib/admin-context";
+import { getFullMenuForAdmin } from "@/lib/stores";
 import Link from "next/link";
-import { Upload, UtensilsCrossed, Store, Eye, type LucideIcon } from "lucide-react";
+import { Upload, UtensilsCrossed, Store, Eye, Building2, Users } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 export default async function AdminDashboardPage() {
-  const session = await auth();
-  const restaurant = session?.user?.id
-    ? await getRestaurantForUser(session.user.id)
-    : null;
+  const admin = await requireAdminContext();
 
-  const menu = restaurant
-    ? await getFullMenuForAdmin(restaurant.id)
+  const menu = admin.activeStoreId
+    ? await getFullMenuForAdmin(admin.activeStoreId)
     : { categories: [], items: [] };
 
   const publishedCount = menu.items.filter((i) => i.published).length;
@@ -24,46 +22,77 @@ export default async function AdminDashboardPage() {
         Dashboard
       </h1>
       <p className="text-[#5c534a] mb-8">
-        {restaurant
-          ? `Managing ${restaurant.name}`
-          : "Set up your restaurant to get started"}
+        {admin.activeStore
+          ? `Managing ${admin.activeStore.name}`
+          : admin.isSuperadmin
+            ? "Select a store in the sidebar to manage its menu"
+            : "Welcome"}
+        {admin.user.role === "superadmin" && (
+          <span className="ml-2 text-xs uppercase tracking-wide text-[#c9a962]">
+            superadmin
+          </span>
+        )}
       </p>
 
-      <div className="grid sm:grid-cols-3 gap-4 mb-10">
-        <StatCard label="Menu items" value={menu.items.length} />
-        <StatCard label="Published" value={publishedCount} />
-        <StatCard label="With photos" value={withImages} />
-      </div>
+      {admin.activeStoreId && (
+        <>
+          <div className="grid sm:grid-cols-3 gap-4 mb-10">
+            <StatCard label="Menu items" value={menu.items.length} />
+            <StatCard label="Published" value={publishedCount} />
+            <StatCard label="With photos" value={withImages} />
+          </div>
 
-      <div className="grid sm:grid-cols-2 gap-4">
-        <ActionCard
-          href="/admin/restaurant"
-          icon={Store}
-          title="Restaurant profile"
-          description="Name, slug, publish settings"
-        />
-        <ActionCard
-          href="/admin/import"
-          icon={Upload}
-          title="Import menu"
-          description="Upload a photo — Grok extracts items"
-        />
-        <ActionCard
-          href="/admin/products"
-          icon={UtensilsCrossed}
-          title="Products"
-          description="Edit dishes and enhance photos"
-        />
-        {restaurant?.published && (
+          <div className="grid sm:grid-cols-2 gap-4">
+            <ActionCard
+              href="/admin/store"
+              icon={Store}
+              title="Store settings"
+              description="Name, slug, publish settings"
+            />
+            <ActionCard
+              href="/admin/import"
+              icon={Upload}
+              title="Import menu"
+              description="Upload a photo — Grok extracts items"
+            />
+            <ActionCard
+              href="/admin/products"
+              icon={UtensilsCrossed}
+              title="Products"
+              description="Edit dishes and enhance photos"
+            />
+            {admin.activeStore?.published && (
+              <ActionCard
+                href={`/${admin.activeStore.slug}`}
+                icon={Eye}
+                title="Public menu"
+                description="Open live menu in new tab"
+                external
+              />
+            )}
+          </div>
+        </>
+      )}
+
+      {admin.isSuperadmin && (
+        <div className="mt-10 grid sm:grid-cols-2 gap-4">
+          <h2 className="sm:col-span-2 font-medium text-[#1a1612]">
+            Platform administration
+          </h2>
           <ActionCard
-            href={`/${restaurant.slug}`}
-            icon={Eye}
-            title="Public menu"
-            description="Open live menu in new tab"
-            external
+            href="/admin/stores"
+            icon={Building2}
+            title="All stores"
+            description="Create stores and manage the platform"
           />
-        )}
-      </div>
+          <ActionCard
+            href="/admin/users"
+            icon={Users}
+            title="Users"
+            description="Create accounts and assign stores"
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { getPublishedMenu } from "@/lib/restaurant";
+import { getPublishedMenu } from "@/lib/stores";
 import { formatPrice, parseTags } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
@@ -16,7 +16,7 @@ export default async function DishDetailPage({
   const item = menu.items.find((i) => i.id === id);
   if (!item) notFound();
 
-  const accent = menu.restaurant.accentColor ?? "#c9a962";
+  const accent = menu.store.accentColor ?? "#c9a962";
   const imageUrl = item.enhancedImageUrl ?? item.originalImageUrl;
   const category = menu.categories.find((c) => c.id === item.categoryId);
 

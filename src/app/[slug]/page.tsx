@@ -1,5 +1,5 @@
 import { PublicMenu } from "@/components/menu/public-menu";
-import { getPublishedMenu } from "@/lib/restaurant";
+import { getPublishedMenu } from "@/lib/stores";
 import { notFound } from "next/navigation";
 
 export default async function PublicMenuPage({
@@ -14,7 +14,7 @@ export default async function PublicMenuPage({
 
   return (
     <PublicMenu
-      restaurant={menu.restaurant}
+      store={menu.store}
       categories={menu.categories}
       items={menu.items}
     />

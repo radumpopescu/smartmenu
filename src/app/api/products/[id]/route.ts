@@ -1,7 +1,6 @@
-import { auth } from "@/auth";
 import { db } from "@/db";
 import { menuItems } from "@/db/schema";
-import { getRestaurantForUser } from "@/lib/restaurant";
+import { requireApiActiveStore } from "@/lib/api-auth";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -20,17 +19,10 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireApiActiveStore();
+  if ("error" in auth) return auth.error;
 
   const { id } = await params;
-  const restaurant = await getRestaurantForUser(session.user.id);
-  if (!restaurant) {
-    return NextResponse.json({ error: "No restaurant" }, { status: 400 });
-  }
-
   const body = await request.json();
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
@@ -44,7 +36,7 @@ export async function PATCH(
     .update(menuItems)
     .set(updates)
     .where(
-      and(eq(menuItems.id, id), eq(menuItems.restaurantId, restaurant.id))
+      and(eq(menuItems.id, id), eq(menuItems.storeId, auth.storeId))
     )
     .returning();
 
@@ -59,22 +51,14 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireApiActiveStore();
+  if ("error" in auth) return auth.error;
 
   const { id } = await params;
-  const restaurant = await getRestaurantForUser(session.user.id);
-  if (!restaurant) {
-    return NextResponse.json({ error: "No restaurant" }, { status: 400 });
-  }
 
   await db
     .delete(menuItems)
-    .where(
-      and(eq(menuItems.id, id), eq(menuItems.restaurantId, restaurant.id))
-    );
+    .where(and(eq(menuItems.id, id), eq(menuItems.storeId, auth.storeId)));
 
   return NextResponse.json({ ok: true });
 }

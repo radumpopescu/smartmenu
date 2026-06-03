@@ -1,32 +1,36 @@
 "use client";
 
-import type { Restaurant } from "@/db/schema";
+import type { Store } from "@/db/schema";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function RestaurantForm({
-  restaurant,
-}: {
-  restaurant: Restaurant | null;
-}) {
+export function StoreForm({ store }: { store: Store | null }) {
   const router = useRouter();
-  const [name, setName] = useState(restaurant?.name ?? "");
-  const [slug, setSlug] = useState(restaurant?.slug ?? "");
-  const [tagline, setTagline] = useState(restaurant?.tagline ?? "");
-  const [description, setDescription] = useState(restaurant?.description ?? "");
+  const [name, setName] = useState(store?.name ?? "");
+  const [slug, setSlug] = useState(store?.slug ?? "");
+  const [tagline, setTagline] = useState(store?.tagline ?? "");
+  const [description, setDescription] = useState(store?.description ?? "");
   const [accentColor, setAccentColor] = useState(
-    restaurant?.accentColor ?? "#c9a962"
+    store?.accentColor ?? "#c9a962"
   );
-  const [published, setPublished] = useState(restaurant?.published ?? false);
+  const [published, setPublished] = useState(store?.published ?? false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+
+  if (!store) {
+    return (
+      <p className="text-[#5c534a]">
+        Select a store from the sidebar, or ask a superadmin to assign you to one.
+      </p>
+    );
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setMessage("");
 
-    const res = await fetch("/api/restaurant", {
+    const res = await fetch("/api/store", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -50,8 +54,11 @@ export function RestaurantForm({
   }
 
   return (
-    <form onSubmit={handleSave} className="space-y-5 bg-white rounded-xl border border-[#e8e2d9] p-6">
-      <Field label="Restaurant name">
+    <form
+      onSubmit={handleSave}
+      className="space-y-5 bg-white rounded-xl border border-[#e8e2d9] p-6"
+    >
+      <Field label="Store name">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -99,9 +106,7 @@ export function RestaurantForm({
         />
         <span className="text-sm text-[#1a1612]">Publish public menu</span>
       </label>
-      {message && (
-        <p className="text-sm text-[#5c534a]">{message}</p>
-      )}
+      {message && <p className="text-sm text-[#5c534a]">{message}</p>}
       <button
         type="submit"
         disabled={saving}
