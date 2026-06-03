@@ -1,0 +1,1 @@
+Extract the full menu from this image. Return JSON only.

@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "DM Sans", system-ui, sans-serif;
+  --color-menu-bg: #120f0d;
+  --color-menu-surface: #1e1916;
+  --color-menu-cream: #f5efe6;
+  --color-menu-muted: #9a8f82;
+  --color-menu-gold: #c9a962;
+  --color-admin-bg: #f8f6f3;
+  --color-admin-card: #ffffff;
+  --color-admin-border: #e8e2d9;
+  --color-admin-ink: #1a1612;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+}
