@@ -8,19 +8,8 @@ import {
 import { formatPrice, parseTags } from "@/lib/utils";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import {
-  Sparkles,
-  Upload,
-  Trash2,
-  Copy,
-  Check,
-  ExternalLink,
-  ImagePlus,
-  MoreVertical,
-  Search,
-  ImageOff,
-} from "lucide-react";
+import { useState } from "react";
+import { Copy, Check, Search, ImageOff } from "lucide-react";
 import { ProductEditModal } from "@/components/admin/product-edit-modal";
 
 type Props = {
@@ -51,11 +40,8 @@ export function ProductsManager({
   const [copied, setCopied] = useState(false);
   const [apiMode, setApiMode] = useState(false);
   const [search, setSearch] = useState("");
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [manualPanelId, setManualPanelId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   const editingItem = editingId
     ? items.find((i) => i.id === editingId)
@@ -78,16 +64,6 @@ export function ProductsManager({
     );
   });
 
-  useEffect(() => {
-    function onPointerDown(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpenMenuId(null);
-      }
-    }
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-  }, []);
-
   async function uploadPhoto(itemId: string, file: File) {
     const form = new FormData();
     form.append("image", file);
@@ -102,7 +78,6 @@ export function ProductsManager({
     }
     const { item } = await res.json();
     setItems((prev) => prev.map((i) => (i.id === itemId ? item : i)));
-    setOpenMenuId(null);
     router.refresh();
   }
 
@@ -123,7 +98,6 @@ export function ProductsManager({
     }
     const { item } = await res.json();
     setItems((prev) => prev.map((i) => (i.id === itemId ? item : i)));
-    setOpenMenuId(null);
     router.refresh();
   }
 
@@ -175,7 +149,6 @@ export function ProductsManager({
     }
     const { item } = await res.json();
     setItems((prev) => prev.map((i) => (i.id === itemId ? item : i)));
-    setOpenMenuId(null);
     router.refresh();
   }
 
@@ -183,7 +156,6 @@ export function ProductsManager({
     if (!confirm("Delete this item?")) return;
     await fetch(`/api/products/${itemId}`, { method: "DELETE" });
     setItems((prev) => prev.filter((i) => i.id !== itemId));
-    setOpenMenuId(null);
     setEditingId((id) => (id === itemId ? null : id));
     router.refresh();
   }
@@ -238,7 +210,8 @@ export function ProductsManager({
         </summary>
         <div className="px-4 pb-4 border-t border-[#f0ebe3] text-sm text-[#5c534a] space-y-3">
           <p>
-            Copy the prompt → Gemini → upload result per product via the ⋮ menu.
+            Click a product to open it, copy the prompt, run it in Gemini, then
+            upload the result in the modal.
           </p>
           <button
             type="button"
@@ -325,33 +298,7 @@ export function ProductsManager({
               currency={currency}
               displayUrl={getAdminPreviewImageUrl(item, item.images)}
               imageCount={item.images.length}
-              hasOriginal={
-                item.images.some((i) => i.kind === "original") ||
-                !!item.originalImageUrl
-              }
-              isMenuOpen={openMenuId === item.id}
-              isManualOpen={manualPanelId === item.id}
-              isEnhancing={enhancingId === item.id}
-              isUploadingEnhanced={uploadingEnhancedId === item.id}
-              apiMode={apiMode}
-              copied={copied}
-              menuRef={openMenuId === item.id ? menuRef : undefined}
-              onOpen={() => {
-                setEditingId(item.id);
-                setOpenMenuId(null);
-              }}
-              onToggleMenu={() =>
-                setOpenMenuId((id) => (id === item.id ? null : item.id))
-              }
-              onToggleManual={() => {
-                setManualPanelId((id) => (id === item.id ? null : item.id));
-                setOpenMenuId(null);
-              }}
-              onUploadPhoto={(f) => uploadPhoto(item.id, f)}
-              onUploadEnhanced={(f) => uploadEnhanced(item.id, f)}
-              onEnhance={() => enhance(item.id)}
-              onDelete={() => remove(item.id)}
-              onCopyPrompt={copyPrompt}
+              onOpen={() => setEditingId(item.id)}
             />
           ))}
         </div>
@@ -382,17 +329,6 @@ export function ProductsManager({
           onCopyPrompt={copyPrompt}
         />
       )}
-
-      {manualPanelId && (
-        <ManualEnhancePanel
-          item={items.find((i) => i.id === manualPanelId)!}
-          copied={copied}
-          uploading={uploadingEnhancedId === manualPanelId}
-          onClose={() => setManualPanelId(null)}
-          onCopyPrompt={copyPrompt}
-          onUploadEnhanced={(f) => uploadEnhanced(manualPanelId, f)}
-        />
-      )}
     </div>
   );
 }
@@ -403,47 +339,15 @@ function ProductGridCard({
   currency,
   displayUrl,
   imageCount,
-  hasOriginal,
-  isMenuOpen,
-  isManualOpen,
-  isEnhancing,
-  isUploadingEnhanced,
-  apiMode,
-  copied,
-  menuRef,
   onOpen,
-  onToggleMenu,
-  onToggleManual,
-  onUploadPhoto,
-  onUploadEnhanced,
-  onEnhance,
-  onDelete,
-  onCopyPrompt,
 }: {
   item: MenuItemWithImages;
   categoryName: string;
   currency: string;
   displayUrl: string | null;
   imageCount: number;
-  hasOriginal: boolean;
-  isMenuOpen: boolean;
-  isManualOpen: boolean;
-  isEnhancing: boolean;
-  isUploadingEnhanced: boolean;
-  apiMode: boolean;
-  copied: boolean;
-  menuRef?: React.RefObject<HTMLDivElement | null>;
   onOpen: () => void;
-  onToggleMenu: () => void;
-  onToggleManual: () => void;
-  onUploadPhoto: (f: File) => void;
-  onUploadEnhanced: (f: File) => void;
-  onEnhance: () => void;
-  onDelete: () => void;
-  onCopyPrompt: () => void;
 }) {
-  const uploadOriginalRef = useRef<HTMLInputElement>(null);
-  const uploadEnhancedRef = useRef<HTMLInputElement>(null);
   const tags = parseTags(item.tags);
 
   return (
@@ -457,11 +361,7 @@ function ProductGridCard({
           onOpen();
         }
       }}
-      className={`relative bg-white rounded-lg border transition-shadow cursor-pointer ${
-        isManualOpen
-          ? "border-[#c9a962] ring-1 ring-[#c9a962]/30"
-          : "border-[#e8e2d9] hover:border-[#d4cfc6] hover:shadow-sm"
-      }`}
+      className="relative bg-white rounded-lg border border-[#e8e2d9] hover:border-[#d4cfc6] hover:shadow-sm transition-shadow cursor-pointer"
     >
       <div className="relative aspect-square bg-[#f0ebe3] rounded-t-lg overflow-hidden">
         {displayUrl ? (
@@ -489,111 +389,6 @@ function ProductGridCard({
             {imageCount} photos
           </span>
         )}
-        <div
-          className="absolute top-1 right-1"
-          ref={menuRef}
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-        >
-          <button
-            type="button"
-            onClick={onToggleMenu}
-            className="p-1 rounded-md bg-white/90 border border-[#e8e2d9] shadow-sm hover:bg-white text-[#1a1612]"
-            aria-label="Actions"
-          >
-            <MoreVertical size={14} />
-          </button>
-          {isMenuOpen && (
-            <div
-              className="absolute right-0 top-full mt-1 z-30 w-44 py-1 bg-white rounded-lg border border-[#e8e2d9] shadow-lg text-xs"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MenuButton
-                label="Edit details…"
-                onClick={onOpen}
-              />
-              <div className="border-t border-[#f0ebe3] my-1" />
-              <MenuButton
-                icon={Upload}
-                label="Upload original"
-                onClick={() => uploadOriginalRef.current?.click()}
-              />
-              {hasOriginal && (
-                <a
-                  href={
-                    item.images.find((i) => i.kind === "original")?.url ??
-                    item.originalImageUrl!
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-3 py-2 hover:bg-[#f8f6f3] text-[#1a1612]"
-                  onClick={onToggleMenu}
-                >
-                  <ExternalLink size={14} />
-                  Open original
-                </a>
-              )}
-              <MenuButton
-                icon={ImagePlus}
-                label="Enhance photo…"
-                onClick={onToggleManual}
-                active={isManualOpen}
-              />
-              <MenuButton
-                icon={Copy}
-                label={copied ? "Prompt copied" : "Copy prompt"}
-                onClick={() => {
-                  onCopyPrompt();
-                  onToggleMenu();
-                }}
-              />
-              <MenuButton
-                icon={ImagePlus}
-                label={
-                  isUploadingEnhanced ? "Uploading…" : "Upload enhanced"
-                }
-                onClick={() => uploadEnhancedRef.current?.click()}
-              />
-              {apiMode && hasOriginal && (
-                <MenuButton
-                  icon={Sparkles}
-                  label={isEnhancing ? "Enhancing…" : "API enhance"}
-                  onClick={onEnhance}
-                  disabled={isEnhancing}
-                />
-              )}
-              <div className="border-t border-[#f0ebe3] my-1" />
-              <MenuButton
-                icon={Trash2}
-                label="Delete"
-                onClick={onDelete}
-                className="text-red-600 hover:bg-red-50"
-              />
-            </div>
-          )}
-        </div>
-        <input
-          ref={uploadOriginalRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) onUploadPhoto(f);
-            e.target.value = "";
-          }}
-        />
-        <input
-          ref={uploadEnhancedRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) onUploadEnhanced(f);
-            e.target.value = "";
-          }}
-        />
       </div>
 
       <div className="p-2 space-y-0.5">
@@ -611,105 +406,5 @@ function ProductGridCard({
         )}
       </div>
     </article>
-  );
-}
-
-function MenuButton({
-  icon: Icon,
-  label,
-  onClick,
-  disabled,
-  active,
-  className = "",
-}: {
-  icon?: React.ComponentType<{ size?: number }>;
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  active?: boolean;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={`flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-[#f8f6f3] disabled:opacity-50 ${
-        active ? "bg-[#faf6ee] text-[#1a1612]" : "text-[#1a1612]"
-      } ${className}`}
-    >
-      {Icon && <Icon size={14} />}
-      {label}
-    </button>
-  );
-}
-
-function ManualEnhancePanel({
-  item,
-  copied,
-  uploading,
-  onClose,
-  onCopyPrompt,
-  onUploadEnhanced,
-}: {
-  item: MenuItemWithImages;
-  copied: boolean;
-  uploading: boolean;
-  onClose: () => void;
-  onCopyPrompt: () => void;
-  onUploadEnhanced: (f: File) => void;
-}) {
-  const uploadRef = useRef<HTMLInputElement>(null);
-
-  return (
-    <div className="fixed inset-x-0 bottom-0 z-40 p-4 sm:p-6 pointer-events-none">
-      <div className="pointer-events-auto max-w-lg mx-auto bg-white rounded-xl border border-[#e8e2d9] shadow-xl p-4">
-        <div className="flex justify-between items-start gap-2 mb-3">
-          <div>
-            <p className="text-xs text-[#9a8f82]">Enhance photo</p>
-            <p className="font-medium text-[#1a1612]">{item.name}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-xs text-[#9a8f82] hover:text-[#1a1612]"
-          >
-            Close
-          </button>
-        </div>
-        <p className="text-xs text-[#5c534a] mb-3">
-          Run the prompt in Gemini, then upload the result here.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={onCopyPrompt}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border rounded-lg"
-          >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
-            Copy prompt
-          </button>
-          <button
-            type="button"
-            onClick={() => uploadRef.current?.click()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#c9a962] text-[#1a1612] rounded-lg font-medium"
-          >
-            <ImagePlus size={14} />
-            {uploading ? "Uploading…" : "Upload enhanced"}
-          </button>
-        </div>
-        <input
-          ref={uploadRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) onUploadEnhanced(f);
-            e.target.value = "";
-          }}
-        />
-      </div>
-    </div>
   );
 }
