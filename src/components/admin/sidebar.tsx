@@ -45,22 +45,24 @@ export function AdminSidebar({
   const hasStore = !!activeStoreId;
 
   return (
-    <aside className="w-56 shrink-0 border-r border-[#e8e2d9] bg-white min-h-screen p-4 flex flex-col">
-      <div className="mb-4 px-2">
-        <p className="text-xs tracking-widest uppercase text-[#9a8f82]">
-          SmartMenu
-        </p>
-        <p className="font-[family-name:var(--font-display)] text-lg text-[#1a1612]">
-          Admin
-        </p>
-        <p className="text-[10px] uppercase tracking-wide text-[#c9a962] mt-1">
-          {role}
-        </p>
+    <aside className="w-56 shrink-0 border-r border-[#e8e2d9] bg-white sticky top-0 h-screen flex flex-col">
+      <div className="p-4 pb-0">
+        <div className="mb-4 px-2">
+          <p className="text-xs tracking-widest uppercase text-[#9a8f82]">
+            SmartMenu
+          </p>
+          <p className="font-[family-name:var(--font-display)] text-lg text-[#1a1612]">
+            Admin
+          </p>
+          <p className="text-[10px] uppercase tracking-wide text-[#c9a962] mt-1">
+            {role}
+          </p>
+        </div>
+
+        <StoreSwitcher stores={stores} activeStoreId={activeStoreId} />
       </div>
 
-      <StoreSwitcher stores={stores} activeStoreId={activeStoreId} />
-
-      <nav className="flex-1 space-y-1">
+      <nav className="flex-1 min-h-0 overflow-y-auto px-4 py-2 space-y-1">
         {isSuperadmin &&
           superadminLinks.map(({ href, label, icon: Icon }) => (
             <NavLink
@@ -96,25 +98,27 @@ export function AdminSidebar({
         )}
       </nav>
 
-      {activeSlug && (
-        <a
-          href={`/${activeSlug}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 px-3 py-2 text-sm text-[#5c534a] hover:text-[#1a1612] mb-2"
+      <div className="shrink-0 border-t border-[#e8e2d9] p-4 space-y-1 bg-white">
+        {activeSlug && (
+          <a
+            href={`/${activeSlug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-[#5c534a] hover:text-[#1a1612] rounded-lg hover:bg-[#f8f6f3]"
+          >
+            <ExternalLink size={16} />
+            View public menu
+          </a>
+        )}
+        <button
+          type="button"
+          onClick={() => signOut({ callbackUrl: "/admin/login" })}
+          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[#5c534a] hover:text-red-700 rounded-lg hover:bg-red-50"
         >
-          <ExternalLink size={16} />
-          View public menu
-        </a>
-      )}
-      <button
-        type="button"
-        onClick={() => signOut({ callbackUrl: "/admin/login" })}
-        className="flex items-center gap-2 px-3 py-2 text-sm text-[#9a8f82] hover:text-red-700"
-      >
-        <LogOut size={16} />
-        Sign out
-      </button>
+          <LogOut size={16} />
+          Sign out
+        </button>
+      </div>
     </aside>
   );
 }
