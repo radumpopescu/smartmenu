@@ -377,7 +377,8 @@ export function ProductEditModal({
             <p className="text-sm text-[#5c534a] mb-2">Dietary badges</p>
             <DietaryBadgePicker value={badgeIds} onChange={setBadgeIds} />
             <p className="text-xs text-[#9a8f82] mt-2">
-              Tap to toggle. Shown as icons on the public menu.
+              Tap to toggle. Icons on the menu list; names shown on the dish
+              page.
             </p>
           </div>
 

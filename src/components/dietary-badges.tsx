@@ -61,25 +61,57 @@ export function DietaryBadgeIcons({
   tags,
   size = "md",
   accent,
+  showLabels = false,
   className,
 }: {
   tags: string | null;
   size?: "sm" | "md";
   accent?: string;
+  /** Icon + text (e.g. dish detail page) */
+  showLabels?: boolean;
   className?: string;
 }) {
   const ids = parseDietaryBadgeIds(tags);
   if (ids.length === 0) return null;
 
-  const iconSize = size === "sm" ? 14 : 18;
-  const pad = size === "sm" ? "p-1" : "p-1.5";
+  const iconSize = showLabels ? 16 : size === "sm" ? 14 : 18;
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
+    <div className={cn("flex flex-wrap items-center gap-2", className)}>
       {ids.map((id) => {
         const badge = getDietaryBadge(id);
         if (!badge) return null;
         const Icon = badge.Icon;
+
+        if (showLabels) {
+          return (
+            <span
+              key={id}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-full border px-3 py-1.5",
+                size === "sm"
+                  ? "border-[#e8e2d9] bg-[#f8f6f3] text-[#5c534a]"
+                  : "border-[#3d3530] bg-[#1e1916] text-[#c4b8a8]"
+              )}
+              style={
+                accent
+                  ? {
+                      borderColor: `${accent}55`,
+                      color: accent,
+                      backgroundColor: `${accent}12`,
+                    }
+                  : undefined
+              }
+            >
+              <Icon size={iconSize} aria-hidden className="shrink-0" />
+              <span className="text-xs font-medium tracking-wide">
+                {badge.label}
+              </span>
+            </span>
+          );
+        }
+
+        const pad = size === "sm" ? "p-1" : "p-1.5";
         return (
           <span
             key={id}

@@ -84,6 +84,7 @@ export default async function DishDetailPage({
             tags={item.tags}
             size="md"
             accent={accent}
+            showLabels
             className="mt-6 lg:mt-8"
           />
         </article>
