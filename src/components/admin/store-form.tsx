@@ -113,8 +113,7 @@ export function StoreForm({ store }: { store: Store | null }) {
           ))}
         </select>
         <p className="text-xs text-[#9a8f82] mt-1">
-          Prices on the public menu and in admin use this currency. Default is lei
-          (RON).
+          Prices on the public menu and in admin use this currency. Default is lei.
         </p>
       </Field>
       <label className="flex items-center gap-3 cursor-pointer">

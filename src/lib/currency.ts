@@ -4,11 +4,11 @@ export const DEFAULT_CURRENCY = "RON";
 export type CurrencyCode = (typeof SUPPORTED_CURRENCIES)[number]["code"];
 
 export const SUPPORTED_CURRENCIES = [
-  { code: "RON", label: "Lei (RON)", locale: "ro-RO" },
-  { code: "EUR", label: "Euro (EUR)", locale: "ro-RO" },
-  { code: "USD", label: "US Dollar (USD)", locale: "en-US" },
-  { code: "GBP", label: "British Pound (GBP)", locale: "en-GB" },
-  { code: "CHF", label: "Swiss Franc (CHF)", locale: "de-CH" },
+  { code: "RON", label: "Lei", locale: "ro-RO", symbol: "lei" },
+  { code: "EUR", label: "Euro", locale: "ro-RO", symbol: "€" },
+  { code: "USD", label: "US Dollar", locale: "en-US", symbol: "$" },
+  { code: "GBP", label: "British Pound", locale: "en-GB", symbol: "£" },
+  { code: "CHF", label: "Swiss Franc", locale: "de-CH", symbol: "CHF" },
 ] as const;
 
 const localeByCode = Object.fromEntries(
@@ -31,14 +31,25 @@ export function formatPrice(
   if (cents == null) return "";
 
   const code = normalizeCurrency(currency);
-  const locale = localeByCode[code] ?? "ro-RO";
+  const config = SUPPORTED_CURRENCIES.find((c) => c.code === code);
+  const locale = config?.locale ?? "ro-RO";
+  const amount = cents / 100;
+
+  if (code === "RON") {
+    const formatted = new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+    return `${formatted} lei`;
+  }
 
   try {
     return new Intl.NumberFormat(locale, {
       style: "currency",
       currency: code,
-    }).format(cents / 100);
+    }).format(amount);
   } catch {
-    return `${(cents / 100).toFixed(2)} ${code}`;
+    const suffix = config?.symbol ?? code;
+    return `${amount.toFixed(2)} ${suffix}`;
   }
 }
