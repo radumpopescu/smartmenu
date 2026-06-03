@@ -185,15 +185,18 @@ export function ProductsManager({
       tags: string[];
       published: boolean;
       hidden: boolean;
-      sortOrder: number;
     }
   ) {
+    const existing = items.find((i) => i.id === itemId);
     setSavingId(itemId);
     setError("");
     const res = await fetch(`/api/products/${itemId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        ...data,
+        sortOrder: existing?.sortOrder ?? 0,
+      }),
     });
     setSavingId(null);
     if (!res.ok) {

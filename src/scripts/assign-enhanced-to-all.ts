@@ -13,7 +13,7 @@ async function main() {
     .where(eq(productImages.kind, "enhanced"))
     .limit(1);
 
-  let sharedUrl = source?.url;
+  let sharedUrl: string | null = source?.url ?? null;
 
   if (!sharedUrl) {
     const legacyRows = await db

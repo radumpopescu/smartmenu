@@ -51,7 +51,6 @@ type Props = {
     tags: string[];
     published: boolean;
     hidden: boolean;
-    sortOrder: number;
   }) => void;
   onUploadPhoto: (file: File) => void;
   onUploadEnhanced: (file: File) => void;
@@ -90,7 +89,6 @@ export function ProductEditModal({
   const [tagsInput, setTagsInput] = useState(parseTags(item.tags).join(", "));
   const [published, setPublished] = useState(item.published);
   const [hidden, setHidden] = useState(item.hidden);
-  const [sortOrder, setSortOrder] = useState(String(item.sortOrder));
   const [enhanceSourceId, setEnhanceSourceId] = useState<string>("");
 
   const uploadOriginalRef = useRef<HTMLInputElement>(null);
@@ -108,7 +106,6 @@ export function ProductEditModal({
     setTagsInput(parseTags(item.tags).join(", "));
     setPublished(item.published);
     setHidden(item.hidden);
-    setSortOrder(String(item.sortOrder));
     const firstOriginal = item.images.find((i) => i.kind === "original");
     if (firstOriginal) setEnhanceSourceId(firstOriginal.id);
   }, [item]);
@@ -141,7 +138,6 @@ export function ProductEditModal({
       tags,
       published,
       hidden,
-      sortOrder: parseInt(sortOrder, 10) || 0,
     });
   }
 
@@ -374,22 +370,16 @@ export function ProductEditModal({
             )}
           </div>
 
-          <Field label="Tags (comma-separated)">
+          <Field label="Dietary labels">
             <input
               value={tagsInput}
               onChange={(e) => setTagsInput(e.target.value)}
-              placeholder="vegan, spicy"
+              placeholder="vegan, gluten-free, spicy"
               className={inputClass}
             />
-          </Field>
-
-          <Field label="Sort order">
-            <input
-              type="number"
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value)}
-              className={inputClass}
-            />
+            <p className="text-xs text-[#9a8f82] mt-1">
+              Optional badges on the public menu. Separate with commas.
+            </p>
           </Field>
 
           <div className="space-y-3">
