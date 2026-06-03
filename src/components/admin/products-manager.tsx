@@ -1,16 +1,12 @@
 "use client";
 
 import type { Category } from "@/db/schema";
-import {
-  getAdminPreviewImageUrl,
-  type MenuItemWithImages,
-} from "@/lib/product-image-display";
-import { formatPrice, parseTags } from "@/lib/utils";
-import Image from "next/image";
+import type { MenuItemWithImages } from "@/lib/product-image-display";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Copy, Check, Search, ImageOff } from "lucide-react";
+import { Copy, Check, Search } from "lucide-react";
 import { ProductEditModal } from "@/components/admin/product-edit-modal";
+import { ProductsCategoryBoard } from "@/components/admin/products-category-board";
 
 type Props = {
   initialCategories: Category[];
@@ -28,6 +24,7 @@ export function ProductsManager({
   dishEnhancementSource,
 }: Props) {
   const router = useRouter();
+  const [categories, setCategories] = useState(initialCategories);
   const [items, setItems] = useState(initialItems);
   const [enhancingId, setEnhancingId] = useState<string | null>(null);
   const [uploadingEnhancedId, setUploadingEnhancedId] = useState<string | null>(
@@ -46,23 +43,6 @@ export function ProductsManager({
   const editingItem = editingId
     ? items.find((i) => i.id === editingId)
     : undefined;
-
-  const categoryMap = Object.fromEntries(
-    initialCategories.map((c) => [c.id, c.name])
-  );
-
-  const filteredItems = items.filter((item) => {
-    const q = search.trim().toLowerCase();
-    if (!q) return true;
-    const cat = item.categoryId
-      ? (categoryMap[item.categoryId] ?? "").toLowerCase()
-      : "";
-    return (
-      item.name.toLowerCase().includes(q) ||
-      cat.includes(q) ||
-      (item.description?.toLowerCase().includes(q) ?? false)
-    );
-  });
 
   async function uploadPhoto(itemId: string, file: File) {
     const form = new FormData();
@@ -274,7 +254,7 @@ export function ProductsManager({
           />
         </div>
         <p className="text-xs text-[#9a8f82] shrink-0">
-          {filteredItems.length} of {items.length} products
+          {items.length} products · {categories.length} categories
         </p>
       </div>
 
@@ -282,32 +262,23 @@ export function ProductsManager({
         <p className="text-[#9a8f82] text-sm">
           No items yet. Import a menu from the Import page.
         </p>
-      ) : filteredItems.length === 0 ? (
-        <p className="text-[#9a8f82] text-sm">No products match your search.</p>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-          {filteredItems.map((item) => (
-            <ProductGridCard
-              key={item.id}
-              item={item}
-              categoryName={
-                item.categoryId
-                  ? categoryMap[item.categoryId]
-                  : "Uncategorized"
-              }
-              currency={currency}
-              displayUrl={getAdminPreviewImageUrl(item, item.images)}
-              imageCount={item.images.length}
-              onOpen={() => setEditingId(item.id)}
-            />
-          ))}
-        </div>
+        <ProductsCategoryBoard
+          categories={categories}
+          items={items}
+          currency={currency}
+          searchQuery={search}
+          onCategoriesChange={setCategories}
+          onItemsChange={setItems}
+          onOpenProduct={setEditingId}
+          onError={setError}
+        />
       )}
 
       {editingItem && (
         <ProductEditModal
           item={editingItem}
-          categories={initialCategories}
+          categories={categories}
           currency={currency}
           apiMode={apiMode}
           copied={copied}
@@ -330,81 +301,5 @@ export function ProductsManager({
         />
       )}
     </div>
-  );
-}
-
-function ProductGridCard({
-  item,
-  categoryName,
-  currency,
-  displayUrl,
-  imageCount,
-  onOpen,
-}: {
-  item: MenuItemWithImages;
-  categoryName: string;
-  currency: string;
-  displayUrl: string | null;
-  imageCount: number;
-  onOpen: () => void;
-}) {
-  const tags = parseTags(item.tags);
-
-  return (
-    <article
-      role="button"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onOpen();
-        }
-      }}
-      className="relative bg-white rounded-lg border border-[#e8e2d9] hover:border-[#d4cfc6] hover:shadow-sm transition-shadow cursor-pointer"
-    >
-      <div className="relative aspect-square bg-[#f0ebe3] rounded-t-lg overflow-hidden">
-        {displayUrl ? (
-          <Image
-            src={displayUrl}
-            alt={item.name}
-            fill
-            className="object-cover"
-            sizes="120px"
-            unoptimized
-          />
-        ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-[#9a8f82]">
-            <ImageOff size={20} />
-            <span className="text-[10px] mt-1">No photo</span>
-          </div>
-        )}
-        {item.displayImageId && (
-          <span className="absolute top-1 left-1 text-[9px] bg-[#1a1612] text-white px-1 rounded font-medium">
-            menu
-          </span>
-        )}
-        {imageCount > 1 && (
-          <span className="absolute bottom-1 left-1 text-[9px] bg-white/90 text-[#1a1612] px-1 rounded font-medium border border-[#e8e2d9]">
-            {imageCount} photos
-          </span>
-        )}
-      </div>
-
-      <div className="p-2 space-y-0.5">
-        <p className="text-[10px] text-[#9a8f82] uppercase tracking-wide truncate">
-          {categoryName}
-        </p>
-        <h3 className="text-xs font-medium text-[#1a1612] leading-snug line-clamp-2 min-h-[2.5em]">
-          {item.name}
-        </h3>
-        <p className="text-xs text-[#c9a962] font-medium">
-          {formatPrice(item.priceCents, item.priceLabel, currency) || "—"}
-        </p>
-        {tags.length > 0 && (
-          <p className="text-[9px] text-[#9a8f82] truncate">{tags.join(" · ")}</p>
-        )}
-      </div>
-    </article>
   );
 }
