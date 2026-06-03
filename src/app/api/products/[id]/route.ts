@@ -13,6 +13,7 @@ const updateSchema = z.object({
   priceLabel: z.string().nullable().optional(),
   tags: z.array(z.string()).optional(),
   published: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
 });
 
 export async function PATCH(

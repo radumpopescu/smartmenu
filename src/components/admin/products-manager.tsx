@@ -17,6 +17,7 @@ import {
   Search,
   ImageOff,
 } from "lucide-react";
+import { ProductEditModal } from "@/components/admin/product-edit-modal";
 
 type Props = {
   initialCategories: Category[];
@@ -48,7 +49,13 @@ export function ProductsManager({
   const [search, setSearch] = useState("");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [manualPanelId, setManualPanelId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const editingItem = editingId
+    ? items.find((i) => i.id === editingId)
+    : undefined;
 
   const categoryMap = Object.fromEntries(
     initialCategories.map((c) => [c.id, c.name])
@@ -152,6 +159,39 @@ export function ProductsManager({
     await fetch(`/api/products/${itemId}`, { method: "DELETE" });
     setItems((prev) => prev.filter((i) => i.id !== itemId));
     setOpenMenuId(null);
+    setEditingId((id) => (id === itemId ? null : id));
+    router.refresh();
+  }
+
+  async function saveProduct(
+    itemId: string,
+    data: {
+      name: string;
+      description: string | null;
+      categoryId: string | null;
+      priceCents: number | null;
+      priceLabel: string | null;
+      tags: string[];
+      published: boolean;
+      sortOrder: number;
+    }
+  ) {
+    setSavingId(itemId);
+    setError("");
+    const res = await fetch(`/api/products/${itemId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    setSavingId(null);
+    if (!res.ok) {
+      const body = await res.json();
+      setError(body.error ?? "Save failed");
+      return;
+    }
+    const { item } = await res.json();
+    setItems((prev) => prev.map((i) => (i.id === itemId ? item : i)));
+    setEditingId(null);
     router.refresh();
   }
 
@@ -270,6 +310,10 @@ export function ProductsManager({
               apiMode={apiMode}
               copied={copied}
               menuRef={openMenuId === item.id ? menuRef : undefined}
+              onOpen={() => {
+                setEditingId(item.id);
+                setOpenMenuId(null);
+              }}
               onToggleMenu={() =>
                 setOpenMenuId((id) => (id === item.id ? null : item.id))
               }
@@ -286,6 +330,29 @@ export function ProductsManager({
             />
           ))}
         </div>
+      )}
+
+      {editingItem && (
+        <ProductEditModal
+          item={editingItem}
+          categories={initialCategories}
+          currency={currency}
+          dishEnhancementPrompt={dishEnhancementPrompt}
+          apiMode={apiMode}
+          provider={provider}
+          copied={copied}
+          enhancing={enhancingId === editingItem.id}
+          uploadingEnhanced={uploadingEnhancedId === editingItem.id}
+          saving={savingId === editingItem.id}
+          onClose={() => setEditingId(null)}
+          onSave={(data) => saveProduct(editingItem.id, data)}
+          onUploadPhoto={(f) => uploadPhoto(editingItem.id, f)}
+          onUploadEnhanced={(f) => uploadEnhanced(editingItem.id, f)}
+          onClearEnhanced={() => clearEnhanced(editingItem.id)}
+          onEnhance={() => enhance(editingItem.id)}
+          onDelete={() => remove(editingItem.id)}
+          onCopyPrompt={copyPrompt}
+        />
       )}
 
       {manualPanelId && (
@@ -317,6 +384,7 @@ function ProductGridCard({
   apiMode,
   copied,
   menuRef,
+  onOpen,
   onToggleMenu,
   onToggleManual,
   onUploadPhoto,
@@ -339,6 +407,7 @@ function ProductGridCard({
   apiMode: boolean;
   copied: boolean;
   menuRef?: React.RefObject<HTMLDivElement | null>;
+  onOpen: () => void;
   onToggleMenu: () => void;
   onToggleManual: () => void;
   onUploadPhoto: (f: File) => void;
@@ -354,7 +423,16 @@ function ProductGridCard({
 
   return (
     <article
-      className={`relative bg-white rounded-lg border transition-shadow ${
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      className={`relative bg-white rounded-lg border transition-shadow cursor-pointer ${
         isManualOpen
           ? "border-[#c9a962] ring-1 ring-[#c9a962]/30"
           : "border-[#e8e2d9] hover:border-[#d4cfc6] hover:shadow-sm"
@@ -381,7 +459,12 @@ function ProductGridCard({
             enhanced
           </span>
         )}
-        <div className="absolute top-1 right-1" ref={menuRef}>
+        <div
+          className="absolute top-1 right-1"
+          ref={menuRef}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
           <button
             type="button"
             onClick={onToggleMenu}
@@ -391,7 +474,15 @@ function ProductGridCard({
             <MoreVertical size={14} />
           </button>
           {isMenuOpen && (
-            <div className="absolute right-0 top-full mt-1 z-30 w-44 py-1 bg-white rounded-lg border border-[#e8e2d9] shadow-lg text-xs">
+            <div
+              className="absolute right-0 top-full mt-1 z-30 w-44 py-1 bg-white rounded-lg border border-[#e8e2d9] shadow-lg text-xs"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MenuButton
+                label="Edit details…"
+                onClick={onOpen}
+              />
+              <div className="border-t border-[#f0ebe3] my-1" />
               <MenuButton
                 icon={Upload}
                 label="Upload original"
