@@ -2,13 +2,17 @@ import { db } from "@/db";
 import { menuItems } from "@/db/schema";
 import { enhanceDishImage, type ImageProvider } from "@/lib/image-enhance";
 import { requireApiActiveStore } from "@/lib/api-auth";
-import { saveBuffer } from "@/lib/uploads";
+import {
+  addProductImageFromBuffer,
+  loadMenuItemWithImages,
+} from "@/lib/product-images";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const schema = z.object({
   provider: z.enum(["nano-banana", "openai"]),
+  sourceImageId: z.string().optional(),
 });
 
 export async function POST(
@@ -29,11 +33,9 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  if (!item.originalImageUrl) {
-    return NextResponse.json(
-      { error: "Upload an original photo first" },
-      { status: 400 }
-    );
+  const withImages = await loadMenuItemWithImages(id, auth.storeId);
+  if (!withImages) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const body = await request.json();
@@ -42,23 +44,40 @@ export async function POST(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
+  let sourceUrl: string | null = null;
+  if (parsed.data.sourceImageId) {
+    const source = withImages.images.find(
+      (img) => img.id === parsed.data.sourceImageId
+    );
+    if (!source || source.kind !== "original") {
+      return NextResponse.json(
+        { error: "Select a valid original photo to enhance" },
+        { status: 400 }
+      );
+    }
+    sourceUrl = source.url;
+  } else {
+    const originals = withImages.images.filter((i) => i.kind === "original");
+    sourceUrl =
+      originals.at(-1)?.url ?? item.originalImageUrl ?? null;
+  }
+
+  if (!sourceUrl) {
+    return NextResponse.json(
+      { error: "Upload an original photo first" },
+      { status: 400 }
+    );
+  }
+
   try {
     const buffer = await enhanceDishImage(
-      item.originalImageUrl,
+      sourceUrl,
       parsed.data.provider as ImageProvider
     );
-    const enhancedImageUrl = await saveBuffer(
-      buffer,
-      `dishes/${auth.storeId}/enhanced`,
-      ".png"
-    );
-
-    const [updated] = await db
-      .update(menuItems)
-      .set({ enhancedImageUrl })
-      .where(eq(menuItems.id, id))
-      .returning();
-
+    const updated = await addProductImageFromBuffer(id, auth.storeId, buffer);
+    if (!updated) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
     return NextResponse.json({ item: updated });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Enhancement failed";

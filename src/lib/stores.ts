@@ -9,6 +9,15 @@ import {
   type UserRole,
 } from "@/db/schema";
 import { eq, inArray, and } from "drizzle-orm";
+import {
+  attachImagesToMenuItems,
+  attachPublicImageUrls,
+  type PublicMenuItem,
+} from "@/lib/product-image-display";
+import {
+  fetchImagesByMenuItemIds,
+  type MenuItemWithImages,
+} from "@/lib/product-images";
 
 export type AuthUser = {
   id: string;
@@ -122,8 +131,17 @@ export async function getPublishedMenu(slug: string) {
     .orderBy(menuItems.sortOrder);
 
   const publishedItems = items.filter((i) => i.published);
+  const imageMap = await fetchImagesByMenuItemIds(
+    publishedItems.map((i) => i.id)
+  );
+  const itemsWithImages = attachPublicImageUrls(publishedItems, imageMap);
 
-  return { store, restaurant: store, categories: cats, items: publishedItems };
+  return {
+    store,
+    restaurant: store,
+    categories: cats,
+    items: itemsWithImages,
+  };
 }
 
 export async function getFullMenuForAdmin(storeId: string) {
@@ -139,8 +157,17 @@ export async function getFullMenuForAdmin(storeId: string) {
     .where(eq(menuItems.storeId, storeId))
     .orderBy(menuItems.sortOrder);
 
-  return { categories: cats, items };
+  const imageMap = await fetchImagesByMenuItemIds(items.map((i) => i.id));
+  const itemsWithImages: MenuItemWithImages[] = attachImagesToMenuItems(
+    items,
+    imageMap
+  );
+
+  return { categories: cats, items: itemsWithImages };
 }
+
+export type { MenuItemWithImages } from "@/lib/product-image-display";
+export type { PublicMenuItem };
 
 export async function assignUserToStore(userId: string, storeId: string) {
   await db

@@ -17,7 +17,7 @@ export default async function DishDetailPage({
   if (!item) notFound();
 
   const accent = menu.store.accentColor ?? "#c9a962";
-  const imageUrl = item.enhancedImageUrl ?? item.originalImageUrl;
+  const imageUrl = item.publicImageUrl;
   const category = menu.categories.find((c) => c.id === item.categoryId);
 
   return (

@@ -1,6 +1,7 @@
 "use client";
 
-import type { Category, MenuItem, Store } from "@/db/schema";
+import type { Category, Store } from "@/db/schema";
+import type { PublicMenuItem } from "@/lib/stores";
 import { formatPrice, parseTags } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
@@ -9,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 type Props = {
   store: Store;
   categories: Category[];
-  items: MenuItem[];
+  items: PublicMenuItem[];
 };
 
 export function PublicMenu({ store, categories, items }: Props) {
@@ -205,13 +206,13 @@ function DishCard({
   featured,
   slug,
 }: {
-  item: MenuItem;
+  item: PublicMenuItem;
   accent: string;
   currency: string;
   featured?: boolean;
   slug: string;
 }) {
-  const imageUrl = item.enhancedImageUrl ?? item.originalImageUrl;
+  const imageUrl = item.publicImageUrl;
   const tags = parseTags(item.tags);
   const price = formatPrice(item.priceCents, item.priceLabel, currency);
 

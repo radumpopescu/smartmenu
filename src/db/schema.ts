@@ -61,6 +61,24 @@ export const categories = sqliteTable("categories", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
+export const PRODUCT_IMAGE_KINDS = ["original", "enhanced"] as const;
+export type ProductImageKind = (typeof PRODUCT_IMAGE_KINDS)[number];
+
+export const productImages = sqliteTable("product_images", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  menuItemId: text("menu_item_id")
+    .notNull()
+    .references(() => menuItems.id, { onDelete: "cascade" }),
+  url: text("url").notNull(),
+  kind: text("kind").$type<ProductImageKind>().notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
 export const menuItems = sqliteTable("menu_items", {
   id: text("id")
     .primaryKey()
@@ -76,8 +94,11 @@ export const menuItems = sqliteTable("menu_items", {
   priceCents: integer("price_cents"),
   priceLabel: text("price_label"),
   tags: text("tags"),
+  /** @deprecated use product_images + displayImageId */
   originalImageUrl: text("original_image_url"),
+  /** @deprecated use product_images + displayImageId */
   enhancedImageUrl: text("enhanced_image_url"),
+  displayImageId: text("display_image_id"),
   published: integer("published", { mode: "boolean" }).notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: integer("created_at", { mode: "timestamp" })
@@ -108,7 +129,7 @@ export const categoriesRelations = relations(categories, ({ one, many }) => ({
   items: many(menuItems),
 }));
 
-export const menuItemsRelations = relations(menuItems, ({ one }) => ({
+export const menuItemsRelations = relations(menuItems, ({ one, many }) => ({
   store: one(stores, {
     fields: [menuItems.storeId],
     references: [stores.id],
@@ -117,12 +138,25 @@ export const menuItemsRelations = relations(menuItems, ({ one }) => ({
     fields: [menuItems.categoryId],
     references: [categories.id],
   }),
+  images: many(productImages),
+  displayImage: one(productImages, {
+    fields: [menuItems.displayImageId],
+    references: [productImages.id],
+  }),
+}));
+
+export const productImagesRelations = relations(productImages, ({ one }) => ({
+  menuItem: one(menuItems, {
+    fields: [productImages.menuItemId],
+    references: [menuItems.id],
+  }),
 }));
 
 export type User = typeof users.$inferSelect;
 export type Store = typeof stores.$inferSelect;
 export type Category = typeof categories.$inferSelect;
 export type MenuItem = typeof menuItems.$inferSelect;
+export type ProductImage = typeof productImages.$inferSelect;
 
 /** @deprecated use Store */
 export type Restaurant = Store;

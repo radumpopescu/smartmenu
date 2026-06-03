@@ -1,6 +1,10 @@
 "use client";
 
-import type { Category, MenuItem } from "@/db/schema";
+import type { Category, ProductImage } from "@/db/schema";
+import {
+  getAdminPreviewImageUrl,
+  type MenuItemWithImages,
+} from "@/lib/product-image-display";
 import { formatPrice, parseTags } from "@/lib/utils";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
@@ -29,12 +33,10 @@ function centsFromLeiInput(value: string): number | null {
 }
 
 type Props = {
-  item: MenuItem;
+  item: MenuItemWithImages;
   categories: Category[];
   currency: string;
-  dishEnhancementPrompt: string;
   apiMode: boolean;
-  provider: "nano-banana" | "openai";
   copied: boolean;
   enhancing: boolean;
   uploadingEnhanced: boolean;
@@ -52,8 +54,9 @@ type Props = {
   }) => void;
   onUploadPhoto: (file: File) => void;
   onUploadEnhanced: (file: File) => void;
-  onClearEnhanced: () => void;
-  onEnhance: () => void;
+  onDeleteImage: (imageId: string) => void;
+  onSetDisplayImage: (displayImageId: string | null) => void;
+  onEnhance: (sourceImageId?: string) => void;
   onDelete: () => void;
   onCopyPrompt: () => void;
 };
@@ -62,7 +65,6 @@ export function ProductEditModal({
   item,
   categories,
   currency,
-  dishEnhancementPrompt,
   apiMode,
   copied,
   enhancing,
@@ -72,7 +74,8 @@ export function ProductEditModal({
   onSave,
   onUploadPhoto,
   onUploadEnhanced,
-  onClearEnhanced,
+  onDeleteImage,
+  onSetDisplayImage,
   onEnhance,
   onDelete,
   onCopyPrompt,
@@ -86,9 +89,12 @@ export function ProductEditModal({
   const [tagsInput, setTagsInput] = useState(parseTags(item.tags).join(", "));
   const [published, setPublished] = useState(item.published);
   const [sortOrder, setSortOrder] = useState(String(item.sortOrder));
+  const [enhanceSourceId, setEnhanceSourceId] = useState<string>("");
 
   const uploadOriginalRef = useRef<HTMLInputElement>(null);
   const uploadEnhancedRef = useRef<HTMLInputElement>(null);
+
+  const originals = item.images.filter((i) => i.kind === "original");
 
   useEffect(() => {
     setName(item.name);
@@ -100,6 +106,8 @@ export function ProductEditModal({
     setTagsInput(parseTags(item.tags).join(", "));
     setPublished(item.published);
     setSortOrder(String(item.sortOrder));
+    const firstOriginal = item.images.find((i) => i.kind === "original");
+    if (firstOriginal) setEnhanceSourceId(firstOriginal.id);
   }, [item]);
 
   useEffect(() => {
@@ -133,7 +141,7 @@ export function ProductEditModal({
     });
   }
 
-  const displayUrl = item.enhancedImageUrl ?? item.originalImageUrl;
+  const previewUrl = getAdminPreviewImageUrl(item, item.images);
 
   return (
     <div
@@ -148,7 +156,7 @@ export function ProductEditModal({
         onClick={onClose}
         aria-label="Close"
       />
-      <div className="relative w-full sm:max-w-lg max-h-[92vh] sm:max-h-[90vh] bg-white rounded-t-2xl sm:rounded-2xl border border-[#e8e2d9] shadow-xl flex flex-col overflow-hidden">
+      <div className="relative w-full sm:max-w-xl max-h-[92vh] sm:max-h-[90vh] bg-white rounded-t-2xl sm:rounded-2xl border border-[#e8e2d9] shadow-xl flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#f0ebe3] shrink-0">
           <h2
             id="product-edit-title"
@@ -170,105 +178,123 @@ export function ProductEditModal({
           onSubmit={handleSubmit}
           className="flex-1 overflow-y-auto px-5 py-4 space-y-5"
         >
-          <div className="flex gap-4">
-            <div className="relative w-24 h-24 shrink-0 rounded-lg overflow-hidden bg-[#f0ebe3]">
-              {displayUrl ? (
-                <Image
-                  src={displayUrl}
-                  alt={item.name}
-                  fill
-                  className="object-cover"
-                  unoptimized
-                />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center text-xs text-[#9a8f82]">
-                  No photo
-                </div>
+          <section className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium text-[#1a1612]">Photos</p>
+              <p className="text-xs text-[#9a8f82]">
+                Select which image appears on the public menu
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => uploadOriginalRef.current?.click()}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs border border-[#e8e2d9] rounded-lg hover:bg-[#f8f6f3]"
+              >
+                <Upload size={12} />
+                Add original
+              </button>
+              <button
+                type="button"
+                onClick={() => uploadEnhancedRef.current?.click()}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs bg-[#c9a962]/20 border border-[#c9a962]/40 rounded-lg"
+              >
+                <ImagePlus size={12} />
+                {uploadingEnhanced ? "Uploading…" : "Add enhanced"}
+              </button>
+              <button
+                type="button"
+                onClick={onCopyPrompt}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs border rounded-lg"
+              >
+                {copied ? <Check size={12} /> : <Copy size={12} />}
+                Prompt
+              </button>
+              {apiMode && originals.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onEnhance(enhanceSourceId || undefined)
+                  }
+                  disabled={enhancing}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs bg-[#1a1612] text-white rounded-lg disabled:opacity-50"
+                >
+                  <Sparkles size={12} />
+                  {enhancing ? "Enhancing…" : "API enhance"}
+                </button>
               )}
             </div>
-            <div className="flex-1 space-y-2">
-              <p className="text-xs font-medium text-[#5c534a]">Photos</p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => uploadOriginalRef.current?.click()}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs border border-[#e8e2d9] rounded-lg hover:bg-[#f8f6f3]"
-                >
-                  <Upload size={12} />
-                  Original
-                </button>
-                <button
-                  type="button"
-                  onClick={() => uploadEnhancedRef.current?.click()}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs bg-[#c9a962]/20 border border-[#c9a962]/40 rounded-lg"
-                >
-                  <ImagePlus size={12} />
-                  {uploadingEnhanced ? "…" : "Enhanced"}
-                </button>
-                <button
-                  type="button"
-                  onClick={onCopyPrompt}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs border rounded-lg"
-                >
-                  {copied ? <Check size={12} /> : <Copy size={12} />}
-                  Prompt
-                </button>
-                {item.originalImageUrl && (
-                  <a
-                    href={item.originalImageUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs border rounded-lg"
-                  >
-                    <ExternalLink size={12} />
-                    Open
-                  </a>
-                )}
-                {item.enhancedImageUrl && (
-                  <button
-                    type="button"
-                    onClick={onClearEnhanced}
-                    className="text-xs text-[#9a8f82] hover:text-red-600 px-1"
-                  >
-                    Clear enhanced
-                  </button>
-                )}
-                {apiMode && item.originalImageUrl && (
-                  <button
-                    type="button"
-                    onClick={onEnhance}
-                    disabled={enhancing}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs bg-[#1a1612] text-white rounded-lg disabled:opacity-50"
-                  >
-                    <Sparkles size={12} />
-                    {enhancing ? "…" : "API"}
-                  </button>
-                )}
-              </div>
-              <input
-                ref={uploadOriginalRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) onUploadPhoto(f);
-                  e.target.value = "";
-                }}
+
+            {apiMode && originals.length > 1 && (
+              <select
+                value={enhanceSourceId}
+                onChange={(e) => setEnhanceSourceId(e.target.value)}
+                className="w-full text-xs border border-[#e8e2d9] rounded-lg px-2 py-1.5 bg-white"
+              >
+                {originals.map((img) => (
+                  <option key={img.id} value={img.id}>
+                    Enhance from original #{img.sortOrder + 1}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <input
+              ref={uploadOriginalRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onUploadPhoto(f);
+                e.target.value = "";
+              }}
+            />
+            <input
+              ref={uploadEnhancedRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onUploadEnhanced(f);
+                e.target.value = "";
+              }}
+            />
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <DisplayChoiceCard
+                selected={item.displayImageId === null}
+                label="No photo on menu"
+                onSelect={() => onSetDisplayImage(null)}
               />
-              <input
-                ref={uploadEnhancedRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) onUploadEnhanced(f);
-                  e.target.value = "";
-                }}
-              />
+              {item.images.map((img) => (
+                <ImageGalleryCard
+                  key={img.id}
+                  image={img}
+                  selected={item.displayImageId === img.id}
+                  onSelect={() => onSetDisplayImage(img.id)}
+                  onDelete={() => {
+                    if (confirm("Remove this photo?")) onDeleteImage(img.id);
+                  }}
+                />
+              ))}
             </div>
-          </div>
+
+            {item.images.length === 0 && (
+              <p className="text-xs text-[#9a8f82]">
+                No photos yet. Add an original or enhanced image above.
+              </p>
+            )}
+
+            {previewUrl && (
+              <p className="text-xs text-[#9a8f82]">
+                Admin preview uses the menu selection when set, otherwise the
+                latest upload.
+              </p>
+            )}
+          </section>
 
           <Field label="Name">
             <input
@@ -369,7 +395,9 @@ export function ProductEditModal({
               onChange={(e) => setPublished(e.target.checked)}
               className="rounded"
             />
-            <span className="text-sm text-[#1a1612]">Published on public menu</span>
+            <span className="text-sm text-[#1a1612]">
+              Published on public menu
+            </span>
           </label>
         </form>
 
@@ -403,6 +431,123 @@ export function ProductEditModal({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function DisplayChoiceCard({
+  selected,
+  label,
+  onSelect,
+}: {
+  selected: boolean;
+  label: string;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`relative aspect-square rounded-lg border-2 border-dashed flex flex-col items-center justify-center p-2 text-center transition ${
+        selected
+          ? "border-[#c9a962] bg-[#faf6ee] ring-2 ring-[#c9a962]/30"
+          : "border-[#e8e2d9] hover:border-[#d4cfc6]"
+      }`}
+    >
+      <ImageOffPlaceholder />
+      <span className="text-[10px] text-[#5c534a] mt-2 leading-tight">
+        {label}
+      </span>
+      {selected && <MenuBadge />}
+    </button>
+  );
+}
+
+function ImageGalleryCard({
+  image,
+  selected,
+  onSelect,
+  onDelete,
+}: {
+  image: ProductImage;
+  selected: boolean;
+  onSelect: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div
+      className={`relative aspect-square rounded-lg overflow-hidden border-2 transition ${
+        selected
+          ? "border-[#c9a962] ring-2 ring-[#c9a962]/30"
+          : "border-[#e8e2d9]"
+      }`}
+    >
+      <button type="button" onClick={onSelect} className="absolute inset-0">
+        <Image
+          src={image.url}
+          alt=""
+          fill
+          className="object-cover"
+          unoptimized
+        />
+      </button>
+      <span
+        className={`absolute top-1 left-1 text-[9px] px-1 rounded font-medium ${
+          image.kind === "enhanced"
+            ? "bg-[#c9a962] text-[#1a1612]"
+            : "bg-white/90 text-[#1a1612] border border-[#e8e2d9]"
+        }`}
+      >
+        {image.kind}
+      </span>
+      {selected && <MenuBadge />}
+      <div className="absolute top-1 right-1 flex gap-1">
+        <a
+          href={image.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="p-1 rounded bg-white/90 border border-[#e8e2d9] text-[#1a1612]"
+        >
+          <ExternalLink size={10} />
+        </a>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="p-1 rounded bg-white/90 border border-[#e8e2d9] text-red-600"
+        >
+          <Trash2 size={10} />
+        </button>
+      </div>
+      <label className="absolute bottom-0 inset-x-0 bg-black/50 text-white text-[10px] py-1 flex items-center justify-center gap-1 cursor-pointer">
+        <input
+          type="radio"
+          name="menu-display"
+          checked={selected}
+          onChange={onSelect}
+          className="accent-[#c9a962]"
+        />
+        On menu
+      </label>
+    </div>
+  );
+}
+
+function MenuBadge() {
+  return (
+    <span className="absolute bottom-8 left-1/2 -translate-x-1/2 text-[9px] bg-[#1a1612] text-white px-1.5 py-0.5 rounded font-medium">
+      menu
+    </span>
+  );
+}
+
+function ImageOffPlaceholder() {
+  return (
+    <div className="w-10 h-10 rounded-full bg-[#f0ebe3] flex items-center justify-center text-[#9a8f82] text-lg">
+      ∅
     </div>
   );
 }

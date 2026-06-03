@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { db, sqlite } from "@/db";
 import { users, stores, categories, menuItems, userStores } from "@/db/schema";
+import { migrateLegacyProductImages } from "@/lib/product-images";
 import { eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import path from "path";
@@ -56,11 +57,29 @@ function runMigrations() {
       tags TEXT,
       original_image_url TEXT,
       enhanced_image_url TEXT,
+      display_image_id TEXT,
       published INTEGER DEFAULT 1 NOT NULL,
       sort_order INTEGER DEFAULT 0 NOT NULL,
       created_at INTEGER DEFAULT (unixepoch()) NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS product_images (
+      id TEXT PRIMARY KEY,
+      menu_item_id TEXT NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
+      url TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      sort_order INTEGER DEFAULT 0 NOT NULL,
+      created_at INTEGER DEFAULT (unixepoch()) NOT NULL
+    );
   `);
+
+  const menuCols = sqlite
+    .prepare(`PRAGMA table_info(menu_items)`)
+    .all() as { name: string }[];
+  if (!menuCols.some((c) => c.name === "display_image_id")) {
+    sqlite.exec(
+      `ALTER TABLE menu_items ADD COLUMN display_image_id TEXT`
+    );
+  }
 
   const userCols = sqlite
     .prepare(`PRAGMA table_info(users)`)
@@ -142,6 +161,7 @@ async function upsertUser(
 
 async function main() {
   runMigrations();
+  await migrateLegacyProductImages();
 
   const superEmail = (process.env.ADMIN_EMAIL ?? "admin@example.com").toLowerCase();
   const superPassword = process.env.ADMIN_PASSWORD ?? "changeme";

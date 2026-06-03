@@ -1,8 +1,5 @@
-import { db } from "@/db";
-import { menuItems } from "@/db/schema";
 import { requireApiActiveStore } from "@/lib/api-auth";
-import { saveUpload } from "@/lib/uploads";
-import { eq, and } from "drizzle-orm";
+import { addProductImage } from "@/lib/product-images";
 import { NextResponse } from "next/server";
 
 export async function POST(
@@ -19,14 +16,7 @@ export async function POST(
     return NextResponse.json({ error: "Image required" }, { status: 400 });
   }
 
-  const originalImageUrl = await saveUpload(file, `dishes/${auth.storeId}`);
-
-  const [item] = await db
-    .update(menuItems)
-    .set({ originalImageUrl, enhancedImageUrl: null })
-    .where(and(eq(menuItems.id, id), eq(menuItems.storeId, auth.storeId)))
-    .returning();
-
+  const item = await addProductImage(id, auth.storeId, "original", file);
   if (!item) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

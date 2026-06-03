@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { menuItems } from "@/db/schema";
 import { requireApiActiveStore } from "@/lib/api-auth";
 import { getFullMenuForAdmin } from "@/lib/stores";
-import { saveUpload } from "@/lib/uploads";
+import { addProductImage, loadMenuItemWithImages } from "@/lib/product-images";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -37,12 +37,7 @@ export async function POST(request: Request) {
     const priceCents = formData.get("priceCents");
     const image = formData.get("image");
 
-    let originalImageUrl: string | undefined;
-    if (image instanceof File && image.size > 0) {
-      originalImageUrl = await saveUpload(image, `dishes/${auth.storeId}`);
-    }
-
-    const [item] = await db
+    const [created] = await db
       .insert(menuItems)
       .values({
         storeId: auth.storeId,
@@ -50,11 +45,21 @@ export async function POST(request: Request) {
         description: description ? String(description) : null,
         categoryId: categoryId ? String(categoryId) : null,
         priceCents: priceCents ? Number(priceCents) : null,
-        originalImageUrl: originalImageUrl ?? null,
       })
       .returning();
 
-    return NextResponse.json({ item });
+    if (image instanceof File && image.size > 0) {
+      const withImages = await addProductImage(
+        created.id,
+        auth.storeId,
+        "original",
+        image
+      );
+      return NextResponse.json({ item: withImages ?? created });
+    }
+
+    const item = await loadMenuItemWithImages(created.id, auth.storeId);
+    return NextResponse.json({ item: item ?? created });
   }
 
   const body = await request.json();

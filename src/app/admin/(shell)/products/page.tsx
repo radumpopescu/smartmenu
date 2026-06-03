@@ -1,6 +1,7 @@
 import { ProductsManager } from "@/components/admin/products-manager";
 import { requireAdminContext } from "@/lib/admin-context";
 import { getFullMenuForAdmin } from "@/lib/stores";
+import { migrateLegacyProductImages } from "@/lib/product-images";
 import { getDishEnhancementPrompt } from "@/lib/prompts";
 import { redirect } from "next/navigation";
 
@@ -8,6 +9,7 @@ export default async function ProductsPage() {
   const admin = await requireAdminContext();
   if (!admin.activeStoreId) redirect("/admin");
 
+  await migrateLegacyProductImages();
   const menu = await getFullMenuForAdmin(admin.activeStoreId);
   const dishPrompt = await getDishEnhancementPrompt();
 

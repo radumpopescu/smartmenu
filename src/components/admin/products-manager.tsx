@@ -1,6 +1,10 @@
 "use client";
 
-import type { Category, MenuItem } from "@/db/schema";
+import type { Category } from "@/db/schema";
+import {
+  getAdminPreviewImageUrl,
+  type MenuItemWithImages,
+} from "@/lib/product-image-display";
 import { formatPrice, parseTags } from "@/lib/utils";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -21,7 +25,7 @@ import { ProductEditModal } from "@/components/admin/product-edit-modal";
 
 type Props = {
   initialCategories: Category[];
-  initialItems: MenuItem[];
+  initialItems: MenuItemWithImages[];
   currency: string;
   dishEnhancementPrompt: string;
   dishEnhancementSource: string;
@@ -123,24 +127,45 @@ export function ProductsManager({
     router.refresh();
   }
 
-  async function clearEnhanced(itemId: string) {
-    const res = await fetch(`/api/products/${itemId}/enhanced`, {
+  async function deleteImage(itemId: string, imageId: string) {
+    const res = await fetch(`/api/products/${itemId}/images/${imageId}`, {
       method: "DELETE",
     });
-    if (!res.ok) return;
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error ?? "Delete failed");
+      return;
+    }
     const { item } = await res.json();
     setItems((prev) => prev.map((i) => (i.id === itemId ? item : i)));
-    setOpenMenuId(null);
     router.refresh();
   }
 
-  async function enhance(itemId: string) {
+  async function setDisplayImage(
+    itemId: string,
+    displayImageId: string | null
+  ) {
+    const res = await fetch(`/api/products/${itemId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ displayImageId }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error ?? "Could not update menu photo");
+      return;
+    }
+    const { item } = await res.json();
+    setItems((prev) => prev.map((i) => (i.id === itemId ? item : i)));
+  }
+
+  async function enhance(itemId: string, sourceImageId?: string) {
     setEnhancingId(itemId);
     setError("");
     const res = await fetch(`/api/products/${itemId}/enhance`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider }),
+      body: JSON.stringify({ provider, sourceImageId }),
     });
     setEnhancingId(null);
     if (!res.ok) {
@@ -298,11 +323,12 @@ export function ProductsManager({
                   : "Uncategorized"
               }
               currency={currency}
-              displayUrl={
-                item.enhancedImageUrl ?? item.originalImageUrl ?? null
+              displayUrl={getAdminPreviewImageUrl(item, item.images)}
+              imageCount={item.images.length}
+              hasOriginal={
+                item.images.some((i) => i.kind === "original") ||
+                !!item.originalImageUrl
               }
-              hasEnhanced={!!item.enhancedImageUrl}
-              hasOriginal={!!item.originalImageUrl}
               isMenuOpen={openMenuId === item.id}
               isManualOpen={manualPanelId === item.id}
               isEnhancing={enhancingId === item.id}
@@ -323,7 +349,6 @@ export function ProductsManager({
               }}
               onUploadPhoto={(f) => uploadPhoto(item.id, f)}
               onUploadEnhanced={(f) => uploadEnhanced(item.id, f)}
-              onClearEnhanced={() => clearEnhanced(item.id)}
               onEnhance={() => enhance(item.id)}
               onDelete={() => remove(item.id)}
               onCopyPrompt={copyPrompt}
@@ -337,9 +362,7 @@ export function ProductsManager({
           item={editingItem}
           categories={initialCategories}
           currency={currency}
-          dishEnhancementPrompt={dishEnhancementPrompt}
           apiMode={apiMode}
-          provider={provider}
           copied={copied}
           enhancing={enhancingId === editingItem.id}
           uploadingEnhanced={uploadingEnhancedId === editingItem.id}
@@ -348,8 +371,13 @@ export function ProductsManager({
           onSave={(data) => saveProduct(editingItem.id, data)}
           onUploadPhoto={(f) => uploadPhoto(editingItem.id, f)}
           onUploadEnhanced={(f) => uploadEnhanced(editingItem.id, f)}
-          onClearEnhanced={() => clearEnhanced(editingItem.id)}
-          onEnhance={() => enhance(editingItem.id)}
+          onDeleteImage={(imageId) => deleteImage(editingItem.id, imageId)}
+          onSetDisplayImage={(displayImageId) =>
+            setDisplayImage(editingItem.id, displayImageId)
+          }
+          onEnhance={(sourceImageId) =>
+            enhance(editingItem.id, sourceImageId)
+          }
           onDelete={() => remove(editingItem.id)}
           onCopyPrompt={copyPrompt}
         />
@@ -363,7 +391,6 @@ export function ProductsManager({
           onClose={() => setManualPanelId(null)}
           onCopyPrompt={copyPrompt}
           onUploadEnhanced={(f) => uploadEnhanced(manualPanelId, f)}
-          onClearEnhanced={() => clearEnhanced(manualPanelId)}
         />
       )}
     </div>
@@ -375,7 +402,7 @@ function ProductGridCard({
   categoryName,
   currency,
   displayUrl,
-  hasEnhanced,
+  imageCount,
   hasOriginal,
   isMenuOpen,
   isManualOpen,
@@ -389,16 +416,15 @@ function ProductGridCard({
   onToggleManual,
   onUploadPhoto,
   onUploadEnhanced,
-  onClearEnhanced,
   onEnhance,
   onDelete,
   onCopyPrompt,
 }: {
-  item: MenuItem;
+  item: MenuItemWithImages;
   categoryName: string;
   currency: string;
   displayUrl: string | null;
-  hasEnhanced: boolean;
+  imageCount: number;
   hasOriginal: boolean;
   isMenuOpen: boolean;
   isManualOpen: boolean;
@@ -412,7 +438,6 @@ function ProductGridCard({
   onToggleManual: () => void;
   onUploadPhoto: (f: File) => void;
   onUploadEnhanced: (f: File) => void;
-  onClearEnhanced: () => void;
   onEnhance: () => void;
   onDelete: () => void;
   onCopyPrompt: () => void;
@@ -454,9 +479,14 @@ function ProductGridCard({
             <span className="text-[10px] mt-1">No photo</span>
           </div>
         )}
-        {hasEnhanced && (
-          <span className="absolute top-1 left-1 text-[9px] bg-[#c9a962] text-[#1a1612] px-1 rounded font-medium">
-            enhanced
+        {item.displayImageId && (
+          <span className="absolute top-1 left-1 text-[9px] bg-[#1a1612] text-white px-1 rounded font-medium">
+            menu
+          </span>
+        )}
+        {imageCount > 1 && (
+          <span className="absolute bottom-1 left-1 text-[9px] bg-white/90 text-[#1a1612] px-1 rounded font-medium border border-[#e8e2d9]">
+            {imageCount} photos
           </span>
         )}
         <div
@@ -490,7 +520,10 @@ function ProductGridCard({
               />
               {hasOriginal && (
                 <a
-                  href={item.originalImageUrl!}
+                  href={
+                    item.images.find((i) => i.kind === "original")?.url ??
+                    item.originalImageUrl!
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 px-3 py-2 hover:bg-[#f8f6f3] text-[#1a1612]"
@@ -521,13 +554,6 @@ function ProductGridCard({
                 }
                 onClick={() => uploadEnhancedRef.current?.click()}
               />
-              {hasEnhanced && (
-                <MenuButton
-                  label="Remove enhanced"
-                  onClick={onClearEnhanced}
-                  className="text-[#5c534a]"
-                />
-              )}
               {apiMode && hasOriginal && (
                 <MenuButton
                   icon={Sparkles}
@@ -625,15 +651,13 @@ function ManualEnhancePanel({
   onClose,
   onCopyPrompt,
   onUploadEnhanced,
-  onClearEnhanced,
 }: {
-  item: MenuItem;
+  item: MenuItemWithImages;
   copied: boolean;
   uploading: boolean;
   onClose: () => void;
   onCopyPrompt: () => void;
   onUploadEnhanced: (f: File) => void;
-  onClearEnhanced: () => void;
 }) {
   const uploadRef = useRef<HTMLInputElement>(null);
 
@@ -673,15 +697,6 @@ function ManualEnhancePanel({
             <ImagePlus size={14} />
             {uploading ? "Uploading…" : "Upload enhanced"}
           </button>
-          {item.enhancedImageUrl && (
-            <button
-              type="button"
-              onClick={onClearEnhanced}
-              className="text-xs text-[#5c534a] hover:text-red-600 px-2"
-            >
-              Remove enhanced
-            </button>
-          )}
         </div>
         <input
           ref={uploadRef}

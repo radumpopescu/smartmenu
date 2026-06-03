@@ -13,7 +13,11 @@ export default async function AdminDashboardPage() {
 
   const publishedCount = menu.items.filter((i) => i.published).length;
   const withImages = menu.items.filter(
-    (i) => i.enhancedImageUrl || i.originalImageUrl
+    (i) =>
+      i.displayImageId != null ||
+      i.images.length > 0 ||
+      i.enhancedImageUrl ||
+      i.originalImageUrl
   ).length;
 
   return (

@@ -1,6 +1,7 @@
 import { db } from "@/db";
-import { menuItems } from "@/db/schema";
+import { menuItems, productImages } from "@/db/schema";
 import { requireApiActiveStore } from "@/lib/api-auth";
+import { loadMenuItemWithImages } from "@/lib/product-images";
 import { eq, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -14,6 +15,7 @@ const updateSchema = z.object({
   tags: z.array(z.string()).optional(),
   published: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
+  displayImageId: z.string().nullable().optional(),
 });
 
 export async function PATCH(
@@ -33,6 +35,26 @@ export async function PATCH(
   const updates: Record<string, unknown> = { ...parsed.data };
   if (parsed.data.tags) updates.tags = JSON.stringify(parsed.data.tags);
 
+  if (parsed.data.displayImageId !== undefined) {
+    if (parsed.data.displayImageId) {
+      const [img] = await db
+        .select()
+        .from(productImages)
+        .where(
+          and(
+            eq(productImages.id, parsed.data.displayImageId),
+            eq(productImages.menuItemId, id)
+          )
+        );
+      if (!img) {
+        return NextResponse.json(
+          { error: "Display image not found for this product" },
+          { status: 400 }
+        );
+      }
+    }
+  }
+
   const [item] = await db
     .update(menuItems)
     .set(updates)
@@ -45,7 +67,8 @@ export async function PATCH(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ item });
+  const withImages = await loadMenuItemWithImages(id, auth.storeId);
+  return NextResponse.json({ item: withImages ?? item });
 }
 
 export async function DELETE(
