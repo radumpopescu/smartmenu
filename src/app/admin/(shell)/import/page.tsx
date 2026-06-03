@@ -22,7 +22,7 @@ export default async function ImportPage() {
         </code>
         .
       </p>
-      <MenuImportWizard />
+      <MenuImportWizard currency={admin.activeStore?.currency ?? "RON"} />
     </div>
   );
 }

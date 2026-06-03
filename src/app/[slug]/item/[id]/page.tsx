@@ -55,9 +55,9 @@ export default async function DishDetailPage({
         <h1 className="font-[family-name:var(--font-display)] text-4xl leading-tight">
           {item.name}
         </h1>
-        {formatPrice(item.priceCents, item.priceLabel) && (
+        {formatPrice(item.priceCents, item.priceLabel, menu.store.currency) && (
           <p className="text-2xl mt-3 font-medium" style={{ color: accent }}>
-            {formatPrice(item.priceCents, item.priceLabel)}
+            {formatPrice(item.priceCents, item.priceLabel, menu.store.currency)}
           </p>
         )}
         {item.description && (

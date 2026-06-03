@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { stores, userStores } from "@/db/schema";
 import { requireSuperadmin } from "@/lib/api-auth";
+import { DEFAULT_CURRENCY, normalizeCurrency } from "@/lib/currency";
 import { slugify } from "@/lib/utils";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -10,6 +11,7 @@ const createSchema = z.object({
   slug: z.string().min(1).optional(),
   tagline: z.string().optional(),
   description: z.string().optional(),
+  currency: z.string().min(3).max(3).optional(),
 });
 
 export async function GET() {
@@ -39,6 +41,7 @@ export async function POST(request: Request) {
       slug,
       tagline: parsed.data.tagline ?? null,
       description: parsed.data.description ?? null,
+      currency: normalizeCurrency(parsed.data.currency ?? DEFAULT_CURRENCY),
     })
     .returning();
 

@@ -1,11 +1,12 @@
 "use client";
 
 import type { ExtractedMenu } from "@/lib/grok";
+import { formatPrice } from "@/lib/utils";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, Check } from "lucide-react";
 
-export function MenuImportWizard() {
+export function MenuImportWizard({ currency = "RON" }: { currency?: string }) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -130,10 +131,8 @@ export function MenuImportWizard() {
                         )}
                       </div>
                       <span className="text-[#5c534a] shrink-0">
-                        {item.priceLabel ??
-                          (item.priceCents != null
-                            ? `$${(item.priceCents / 100).toFixed(2)}`
-                            : "—")}
+                        {formatPrice(item.priceCents, item.priceLabel, currency) ||
+                          "—"}
                       </span>
                     </li>
                   ))}

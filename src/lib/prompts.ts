@@ -32,8 +32,9 @@ Return ONLY valid JSON (no markdown) matching this schema:
 }
 
 Rules:
-- priceCents: convert prices to integer cents (e.g. $12.50 → 1250). Use null if unclear.
-- priceLabel: use for ranges or "MP" / "Market Price" instead of priceCents.
+- priceCents: convert prices to integer minor units (bani for RON: 25,50 lei → 2550). Use null if unclear.
+- priceLabel: use for ranges or "MP" / "Preț la cerere" instead of priceCents.
+- Assume Romanian lei (RON) when currency is not shown on the menu.
 - Preserve original language and spelling.
 - Include all sections visible on the menu.
 - tags: dietary hints only (vegan, gluten-free, spicy, etc.)`,

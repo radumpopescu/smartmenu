@@ -30,6 +30,7 @@ export default async function ProductsPage() {
       <ProductsManager
         initialCategories={menu.categories}
         initialItems={menu.items}
+        currency={admin.activeStore?.currency ?? "RON"}
         dishEnhancementPrompt={dishPrompt.text}
         dishEnhancementSource={dishPrompt.sourceFile}
       />

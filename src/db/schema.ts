@@ -27,6 +27,7 @@ export const stores = sqliteTable("restaurants", {
   tagline: text("tagline"),
   description: text("description"),
   accentColor: text("accent_color").default("#c9a962"),
+  currency: text("currency").notNull().default("RON"),
   published: integer("published", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()

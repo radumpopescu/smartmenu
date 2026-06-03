@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { stores } from "@/db/schema";
 import { requireApiActiveStore } from "@/lib/api-auth";
+import { normalizeCurrency } from "@/lib/currency";
 import { slugify } from "@/lib/utils";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -12,6 +13,7 @@ const updateSchema = z.object({
   tagline: z.string().optional(),
   description: z.string().optional(),
   accentColor: z.string().optional(),
+  currency: z.string().min(3).max(3).optional(),
   published: z.boolean().optional(),
 });
 
@@ -38,6 +40,8 @@ export async function PATCH(request: Request) {
   if (parsed.data.description !== undefined)
     updates.description = parsed.data.description;
   if (parsed.data.accentColor) updates.accentColor = parsed.data.accentColor;
+  if (parsed.data.currency)
+    updates.currency = normalizeCurrency(parsed.data.currency);
   if (parsed.data.published !== undefined)
     updates.published = parsed.data.published;
 

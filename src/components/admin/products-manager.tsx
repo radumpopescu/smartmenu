@@ -20,6 +20,7 @@ import {
 type Props = {
   initialCategories: Category[];
   initialItems: MenuItem[];
+  currency: string;
   dishEnhancementPrompt: string;
   dishEnhancementSource: string;
 };
@@ -27,6 +28,7 @@ type Props = {
 export function ProductsManager({
   initialCategories,
   initialItems,
+  currency,
   dishEnhancementPrompt,
   dishEnhancementSource,
 }: Props) {
@@ -278,7 +280,7 @@ export function ProductsManager({
                         </h2>
                       </div>
                       <span className="text-[#c9a962] font-medium shrink-0">
-                        {formatPrice(item.priceCents, item.priceLabel)}
+                        {formatPrice(item.priceCents, item.priceLabel, currency)}
                       </span>
                     </div>
                     {item.description && (

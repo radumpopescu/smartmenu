@@ -131,6 +131,7 @@ export function PublicMenu({ store, categories, items }: Props) {
                     key={item.id}
                     item={item}
                     accent={accent}
+                    currency={store.currency}
                     featured={sectionIndex === 0 && i === 0}
                     slug={store.slug}
                   />
@@ -154,6 +155,7 @@ export function PublicMenu({ store, categories, items }: Props) {
                   key={item.id}
                   item={item}
                   accent={accent}
+                  currency={store.currency}
                   slug={store.slug}
                 />
               ))}
@@ -199,17 +201,19 @@ function Chip({
 function DishCard({
   item,
   accent,
+  currency,
   featured,
   slug,
 }: {
   item: MenuItem;
   accent: string;
+  currency: string;
   featured?: boolean;
   slug: string;
 }) {
   const imageUrl = item.enhancedImageUrl ?? item.originalImageUrl;
   const tags = parseTags(item.tags);
-  const price = formatPrice(item.priceCents, item.priceLabel);
+  const price = formatPrice(item.priceCents, item.priceLabel, currency);
 
   if (featured && imageUrl) {
     return (

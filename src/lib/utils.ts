@@ -5,14 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatPrice(cents: number | null, label?: string | null) {
-  if (label) return label;
-  if (cents == null) return "";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(cents / 100);
-}
+export { formatPrice, DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from "./currency";
 
 export function parseTags(tags: string | null): string[] {
   if (!tags) return [];

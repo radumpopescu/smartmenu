@@ -29,6 +29,7 @@ function runMigrations() {
       tagline TEXT,
       description TEXT,
       accent_color TEXT DEFAULT '#c9a962',
+      currency TEXT NOT NULL DEFAULT 'RON',
       published INTEGER DEFAULT 0 NOT NULL,
       created_at INTEGER DEFAULT (unixepoch()) NOT NULL
     );
@@ -68,6 +69,16 @@ function runMigrations() {
     sqlite.exec(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'operator'`);
   }
 
+  const storeCols = sqlite
+    .prepare(`PRAGMA table_info(restaurants)`)
+    .all() as { name: string }[];
+  if (!storeCols.some((c) => c.name === "currency")) {
+    sqlite.exec(
+      `ALTER TABLE restaurants ADD COLUMN currency TEXT NOT NULL DEFAULT 'RON'`
+    );
+    sqlite.exec(`UPDATE restaurants SET currency = 'RON' WHERE currency IS NULL`);
+  }
+
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS user_stores (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -86,6 +97,19 @@ function runMigrations() {
       SELECT user_id, id FROM restaurants WHERE user_id IS NOT NULL;
     `);
   }
+
+  if (restaurantCols.some((c) => c.name === "currency")) {
+    sqlite.exec(
+      `UPDATE restaurants SET currency = 'RON' WHERE currency IS NULL OR currency = ''`
+    );
+  }
+}
+
+function hasLegacyUserIdColumn() {
+  const cols = sqlite
+    .prepare(`PRAGMA table_info(restaurants)`)
+    .all() as { name: string }[];
+  return cols.some((c) => c.name === "user_id");
 }
 
 async function upsertUser(
@@ -143,17 +167,39 @@ async function main() {
     .where(eq(stores.slug, "bistro-luna"));
 
   if (!store) {
-    [store] = await db
-      .insert(stores)
-      .values({
-        name: "Bistro Luna",
-        slug: "bistro-luna",
-        tagline: "Seasonal plates · Evening service",
-        description: "A demo store showcasing SmartMenu.",
-        published: true,
-        accentColor: "#c9a962",
-      })
-      .returning();
+    if (hasLegacyUserIdColumn()) {
+      const id = crypto.randomUUID();
+      sqlite
+        .prepare(
+          `INSERT INTO restaurants (id, user_id, name, slug, tagline, description, accent_color, currency, published)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          id,
+          superId,
+          "Bistro Luna",
+          "bistro-luna",
+          "Seasonal plates · Evening service",
+          "A demo store showcasing SmartMenu.",
+          "#c9a962",
+          "RON",
+          1
+        );
+      [store] = await db.select().from(stores).where(eq(stores.id, id));
+    } else {
+      [store] = await db
+        .insert(stores)
+        .values({
+          name: "Bistro Luna",
+          slug: "bistro-luna",
+          tagline: "Seasonal plates · Evening service",
+          description: "A demo store showcasing SmartMenu.",
+          published: true,
+          accentColor: "#c9a962",
+          currency: "RON",
+        })
+        .returning();
+    }
     console.log(`Demo store: /${store.slug}`);
 
     const [starters] = await db
