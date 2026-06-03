@@ -5,7 +5,13 @@ import {
   getAdminPreviewImageUrl,
   type MenuItemWithImages,
 } from "@/lib/product-image-display";
-import { formatPrice, parseTags } from "@/lib/utils";
+import { DietaryBadgePicker } from "@/components/dietary-badges";
+import {
+  dietaryBadgeIdsToTags,
+  parseDietaryBadgeIds,
+  type DietaryBadgeId,
+} from "@/lib/dietary-badges";
+import { formatPrice } from "@/lib/utils";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -86,7 +92,9 @@ export function ProductEditModal({
   const [usePriceLabel, setUsePriceLabel] = useState(!!item.priceLabel);
   const [priceLei, setPriceLei] = useState(leiFromCents(item.priceCents));
   const [priceLabel, setPriceLabel] = useState(item.priceLabel ?? "");
-  const [tagsInput, setTagsInput] = useState(parseTags(item.tags).join(", "));
+  const [badgeIds, setBadgeIds] = useState<DietaryBadgeId[]>(() =>
+    parseDietaryBadgeIds(item.tags)
+  );
   const [published, setPublished] = useState(item.published);
   const [hidden, setHidden] = useState(item.hidden);
   const [enhanceSourceId, setEnhanceSourceId] = useState<string>("");
@@ -103,7 +111,7 @@ export function ProductEditModal({
     setUsePriceLabel(!!item.priceLabel);
     setPriceLei(leiFromCents(item.priceCents));
     setPriceLabel(item.priceLabel ?? "");
-    setTagsInput(parseTags(item.tags).join(", "));
+    setBadgeIds(parseDietaryBadgeIds(item.tags));
     setPublished(item.published);
     setHidden(item.hidden);
     const firstOriginal = item.images.find((i) => i.kind === "original");
@@ -124,18 +132,13 @@ export function ProductEditModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const tags = tagsInput
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-
     onSave({
       name: name.trim(),
       description: description.trim() || null,
       categoryId: categoryId || null,
       priceCents: usePriceLabel ? null : centsFromLeiInput(priceLei),
       priceLabel: usePriceLabel ? priceLabel.trim() || null : null,
-      tags,
+      tags: dietaryBadgeIdsToTags(badgeIds),
       published,
       hidden,
     });
@@ -370,17 +373,13 @@ export function ProductEditModal({
             )}
           </div>
 
-          <Field label="Dietary labels">
-            <input
-              value={tagsInput}
-              onChange={(e) => setTagsInput(e.target.value)}
-              placeholder="vegan, gluten-free, spicy"
-              className={inputClass}
-            />
-            <p className="text-xs text-[#9a8f82] mt-1">
-              Optional badges on the public menu. Separate with commas.
+          <div>
+            <p className="text-sm text-[#5c534a] mb-2">Dietary badges</p>
+            <DietaryBadgePicker value={badgeIds} onChange={setBadgeIds} />
+            <p className="text-xs text-[#9a8f82] mt-2">
+              Tap to toggle. Shown as icons on the public menu.
             </p>
-          </Field>
+          </div>
 
           <div className="space-y-3">
             <label className="flex items-center gap-3 cursor-pointer">

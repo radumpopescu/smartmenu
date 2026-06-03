@@ -2,7 +2,8 @@
 
 import type { Category, Store } from "@/db/schema";
 import type { PublicMenuItem } from "@/lib/stores";
-import { formatPrice, parseTags } from "@/lib/utils";
+import { DietaryBadgeIcons } from "@/components/dietary-badges";
+import { formatPrice } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -213,7 +214,6 @@ function DishCard({
   slug: string;
 }) {
   const imageUrl = item.publicImageUrl;
-  const tags = parseTags(item.tags);
   const price = formatPrice(item.priceCents, item.priceLabel, currency);
 
   if (featured && imageUrl) {
@@ -232,19 +232,12 @@ function DishCard({
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#120f0d] via-[#120f0d]/20 to-transparent" />
         <div className="absolute bottom-0 left-0 right-0 p-6">
-          {tags.length > 0 && (
-            <div className="flex gap-2 mb-2">
-              {tags.map((t) => (
-                <span
-                  key={t}
-                  className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full border"
-                  style={{ borderColor: `${accent}66`, color: accent }}
-                >
-                  {t}
-                </span>
-              ))}
-            </div>
-          )}
+          <DietaryBadgeIcons
+            tags={item.tags}
+            size="md"
+            accent={accent}
+            className="mb-2"
+          />
           <h3 className="font-[family-name:var(--font-display)] text-3xl leading-tight">
             {item.name}
           </h3>
@@ -307,18 +300,12 @@ function DishCard({
               {item.description}
             </p>
           )}
-          {tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-3">
-              {tags.map((t) => (
-                <span
-                  key={t}
-                  className="text-[10px] uppercase tracking-widest text-[#6d6358]"
-                >
-                  {t}
-                </span>
-              ))}
-            </div>
-          )}
+          <DietaryBadgeIcons
+            tags={item.tags}
+            size="md"
+            accent={accent}
+            className="mt-3"
+          />
         </>
       )}
 

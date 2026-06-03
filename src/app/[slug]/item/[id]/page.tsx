@@ -1,5 +1,6 @@
 import { getPublishedMenu } from "@/lib/stores";
-import { formatPrice, parseTags } from "@/lib/utils";
+import { DietaryBadgeIcons } from "@/components/dietary-badges";
+import { formatPrice } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -65,18 +66,12 @@ export default async function DishDetailPage({
             {item.description}
           </p>
         )}
-        {parseTags(item.tags).length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-6">
-            {parseTags(item.tags).map((tag) => (
-              <span
-                key={tag}
-                className="text-xs uppercase tracking-widest px-3 py-1 rounded-full border border-[#3d3530] text-[#9a8f82]"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
+        <DietaryBadgeIcons
+          tags={item.tags}
+          size="md"
+          accent={accent}
+          className="mt-6"
+        />
       </article>
     </div>
   );

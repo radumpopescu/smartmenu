@@ -37,7 +37,7 @@ Rules:
 - Assume Romanian lei when currency is not shown on the menu.
 - Preserve original language and spelling.
 - Include all sections visible on the menu.
-- tags: dietary hints only (vegan, gluten-free, spicy, etc.)`,
+- tags: use only these ids when applicable: vegetarian, vegan, gluten-free, dairy-free, spicy, contains-nuts, contains-fish, contains-eggs`,
   "menu-extraction-user.txt":
     "Extract the full menu from this image. Return JSON only.",
   "dish-enhancement.txt": `Professional food photography retouch of this exact dish photo.

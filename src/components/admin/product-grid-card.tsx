@@ -1,7 +1,8 @@
 "use client";
 
 import type { MenuItemWithImages } from "@/lib/product-image-display";
-import { formatPrice, parseTags } from "@/lib/utils";
+import { DietaryBadgeIcons } from "@/components/dietary-badges";
+import { formatPrice } from "@/lib/utils";
 import Image from "next/image";
 import { ImageOff, GripVertical, EyeOff, Eye } from "lucide-react";
 import { forwardRef } from "react";
@@ -36,8 +37,6 @@ export const ProductGridCard = forwardRef<HTMLElement, Props>(function ProductGr
   },
   ref
 ) {
-  const tags = parseTags(item.tags);
-
   return (
     <article
       ref={ref}
@@ -122,9 +121,11 @@ export const ProductGridCard = forwardRef<HTMLElement, Props>(function ProductGr
         <p className="text-xs text-[#c9a962] font-medium">
           {formatPrice(item.priceCents, item.priceLabel, currency) || "—"}
         </p>
-        {tags.length > 0 && (
-          <p className="text-[9px] text-[#9a8f82] truncate">{tags.join(" · ")}</p>
-        )}
+        <DietaryBadgeIcons
+          tags={item.tags}
+          size="sm"
+          className="mt-1"
+        />
       </div>
     </article>
   );
