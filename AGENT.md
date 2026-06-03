@@ -105,6 +105,17 @@ The prompt instructs the model to keep the **same dish** (no AI slop) and only i
 - **categories** — ordered sections (Starters, Mains, …)
 - **menu_items** — name, description, priceCents, images, tags, sort order
 
+## Git workflow (required)
+
+After **any** development work in this repo (features, fixes, refactors, docs tied to the app):
+
+1. `git status` — confirm what changed; do not commit `.env`, `llm.log`, `data/`, or `public/uploads/`.
+2. `git add` only intentional files.
+3. **`git commit`** with a clear message (what + why).
+4. **`git push`** to `origin` when the remote exists and the user expects work to be saved.
+
+Do not end a task with a dirty working tree unless the user explicitly asked to leave changes uncommitted.
+
 ## Agent implementation notes
 
 - Always validate Grok JSON before insert; never trust raw LLM output.
