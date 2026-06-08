@@ -184,8 +184,8 @@ async function enhanceWithGemini(
           contents: [
             {
               parts: [
-                { text: promptText },
                 { inline_data: { mime_type: mime, data: base64 } },
+                { text: promptText },
               ],
             },
           ],

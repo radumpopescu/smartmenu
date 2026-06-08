@@ -40,29 +40,32 @@ Rules:
 - tags: use only these ids when applicable: vegetarian, vegan, gluten-free, dairy-free, spicy, contains-nuts, contains-fish, contains-eggs`,
   "menu-extraction-user.txt":
     "Extract the full menu from this image. Return JSON only.",
-  "dish-enhancement.txt": `Professional food photography cutout of this exact dish photo.
+  "dish-enhancement.txt": `BACKGROUND REMOVAL ONLY — edit this existing photograph, do NOT generate a new image.
 
-CRITICAL — preserve fidelity:
-- The dish must remain the SAME food: same ingredients, portions, plating, garnishes, bowl/plate, and identity.
-- Do NOT replace, reimagine, or stylize into a different meal. No AI fantasy food.
-- Do NOT add extra elements that were not in the original photo.
+You are performing a photo cutout/masking task on the attached dish photo. The food must look like the SAME photograph with the backdrop erased — not a re-render, not a re-plate, not a stylized remake.
 
-Background removal (for menu compositing):
-- Remove the entire background. Output a PNG with a fully transparent alpha channel.
-- Keep only the dish, its bowl/plate/utensils, and food — nothing else.
-- Clean, precise edges around the cutout: no white halos, no gray fringing, no leftover backdrop.
-- Include a soft, natural contact shadow directly beneath the bowl/plate only (subtle, semi-transparent) so the dish sits believably on any decorative menu background.
+ABSOLUTE RULES — do not break these:
+- Copy the dish exactly: same shapes, sizes, colors, textures, imperfections, and arrangement.
+- Same bowl/plate: identical color, glaze, rim, angle, and reflections.
+- Same food geometry: if eggs are irregular, broken, or flat in the original, keep them that way. Do NOT make eggs rounder, puffier, taller, or more symmetrical.
+- Same garnishes and portions: do NOT add, remove, move, or duplicate any ingredient.
+- Do NOT add extra sauce, oil pools, spice dust, steam, crumbs, or props.
+- Do NOT apply beauty filters, studio relighting, HDR, gloss, plastic smoothing, or "AI food photography" styling.
+- Do NOT change the camera angle, crop, zoom, or perspective.
 
-Improve only:
-- Lighting on the food (balanced, appetizing, natural)
-- Color accuracy and subtle contrast
-- Sharpness and noise reduction on the dish itself
+Your ONLY allowed edits:
+1. Delete the background → fully transparent alpha (PNG).
+2. Keep the dish, bowl/plate, utensils, and all food pixels intact.
+3. Clean cutout edges: no white halos, gray fringing, or leftover backdrop.
+4. Optional: a very subtle, semi-transparent contact shadow directly under the bowl/plate only.
 
-Composition:
-- Keep the original framing and angle; do not crop aggressively or change the camera perspective.
-- Hero-quality restaurant menu asset, ready to place on a styled background (printed or digital menu collage).
+Forbidden outputs:
+- Regenerated food that looks "prettier" but different from the source
+- Oversaturated colors, waxy textures, or fake shine on eggs/sauce
+- Crowded or rearranged composition
+- Any change to what the dish actually looks like in the original photo
 
-Output: PNG with transparent background. Style: honest, mouth-watering, never over-processed or plastic-looking.`,
+Output: PNG with transparent background. The result should be indistinguishable from the original photo except the background is gone.`,
 };
 
 async function loadPromptFile(filename: string): Promise<LoadedPrompt> {
