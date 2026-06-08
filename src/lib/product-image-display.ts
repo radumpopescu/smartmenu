@@ -16,7 +16,9 @@ export function getPublicMenuImageUrl(
       const selected = images.find((img) => img.id === item.displayImageId);
       return selected?.url ?? null;
     }
-    return null;
+    const enhanced = images.filter((i) => i.kind === "enhanced");
+    if (enhanced.length > 0) return enhanced[enhanced.length - 1]!.url;
+    return images[images.length - 1]?.url ?? null;
   }
   return item.enhancedImageUrl ?? item.originalImageUrl ?? null;
 }

@@ -1,5 +1,6 @@
 import { getPublishedMenu } from "@/lib/stores";
 import { DietaryBadgeIcons } from "@/components/dietary-badges";
+import { getDisplayMarketingBadges, splitCategoryTitle } from "@/lib/menu-badges";
 import { formatPrice } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
@@ -17,66 +18,77 @@ export default async function DishDetailPage({
   const item = menu.items.find((i) => i.id === id);
   if (!item) notFound();
 
-  const accent = menu.store.accentColor ?? "#c9a962";
+  const accent = menu.store.accentColor ?? "#2f6b45";
   const imageUrl = item.publicImageUrl;
   const category = menu.categories.find((c) => c.id === item.categoryId);
+  const categoryTitle = category ? splitCategoryTitle(category.name) : null;
   const price = formatPrice(
     item.priceCents,
     item.priceLabel,
     menu.store.currency
   );
+  const marketingBadges = getDisplayMarketingBadges(item.tags, item.sortOrder);
 
   return (
-    <div className="min-h-screen bg-[#120f0d] text-[#f5efe6]">
+    <div
+      className="min-h-screen menu-collage-bg text-[#1a2f4a]"
+      style={{ "--menu-accent": accent } as React.CSSProperties}
+    >
       <Link
         href={`/${slug}`}
-        className="fixed top-4 left-4 z-30 px-4 py-2 text-sm rounded-full bg-[#1e1916]/90 backdrop-blur border border-[#2a2420] text-[#9a8f82] hover:text-[#f5efe6] lg:top-6 lg:left-8"
+        className="fixed top-4 left-4 z-30 px-4 py-2 text-sm rounded-full bg-[#faf6ef]/95 backdrop-blur border border-[#d8ccb6] text-[#1a3a5c] hover:bg-white shadow-sm"
       >
         ← Menu
       </Link>
 
-      <div className="lg:min-h-screen lg:flex lg:max-w-7xl lg:mx-auto">
+      <article className="mx-auto max-w-lg px-5 pt-16 pb-16 sm:max-w-xl sm:px-8">
+        {categoryTitle && (
+          <p
+            className="text-center font-[family-name:var(--font-script)] text-4xl sm:text-5xl mb-2"
+            style={{ color: accent }}
+          >
+            {categoryTitle.primary}
+            {categoryTitle.secondary ? ` · ${categoryTitle.secondary}` : ""}
+          </p>
+        )}
+
         {imageUrl ? (
-          <div className="relative w-full aspect-square max-h-[70vh] lg:max-h-none lg:flex-1 lg:min-h-screen lg:sticky lg:top-0">
+          <div className="relative mx-auto mb-8 aspect-[4/5] w-full max-w-md">
+            {marketingBadges.map((badge) => (
+              <span
+                key={badge}
+                className={`absolute z-10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-md ${
+                  badge === "new"
+                    ? "top-3 right-3 rounded-full bg-[#d63b3b]"
+                    : "top-3 left-3 rounded-sm bg-[#d63b3b] -rotate-6"
+                }`}
+              >
+                {badge === "new" ? "New" : "Best seller"}
+              </span>
+            ))}
             <Image
               src={imageUrl}
               alt={item.name}
               fill
-              className="object-cover"
+              className="menu-dish-cutout object-contain object-bottom"
               priority
               unoptimized
-              sizes="(max-width: 1024px) 100vw, 50vw"
+              sizes="(max-width: 768px) 100vw, 400px"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#120f0d] lg:bg-gradient-to-r lg:from-transparent lg:via-transparent lg:to-[#120f0d]/80" />
           </div>
         ) : null}
 
-        <article
-          className={`px-6 pb-16 relative flex flex-col justify-center ${
-            imageUrl ? "-mt-8 lg:mt-0 lg:flex-1 lg:px-12 lg:py-16 xl:px-16" : "pt-20 lg:flex-1 lg:px-12 lg:py-16 max-w-2xl mx-auto"
-          }`}
-        >
-          {category && (
-            <p
-              className="text-xs tracking-[0.3em] uppercase mb-2"
-              style={{ color: accent }}
-            >
-              {category.name}
-            </p>
-          )}
-          <h1 className="font-[family-name:var(--font-display)] text-4xl lg:text-5xl xl:text-[3.25rem] leading-tight">
-            {item.name}
-          </h1>
+        <div className="space-y-3 text-center">
           {price && (
-            <p
-              className="text-2xl lg:text-3xl mt-4 font-medium"
-              style={{ color: accent }}
-            >
+            <p className="inline-flex px-4 py-1.5 rounded-md bg-[#1a3a5c] text-white text-lg font-semibold shadow-sm">
               {price}
             </p>
           )}
+          <h1 className="block px-4 py-2 rounded-md bg-[#1a3a5c] text-white text-xl sm:text-2xl font-bold uppercase tracking-wide leading-snug shadow-sm">
+            {item.name}
+          </h1>
           {item.description && (
-            <p className="text-[#9a8f82] mt-6 lg:mt-8 text-lg lg:text-xl leading-relaxed max-w-xl">
+            <p className="px-4 py-3 rounded-md bg-[#faf6ef]/95 border border-[#e0d5c3] text-[#3d4f63] text-base leading-relaxed shadow-sm">
               {item.description}
             </p>
           )}
@@ -85,10 +97,10 @@ export default async function DishDetailPage({
             size="md"
             accent={accent}
             showLabels
-            className="mt-6 lg:mt-8"
+            className="justify-center mt-4"
           />
-        </article>
-      </div>
+        </div>
+      </article>
     </div>
   );
 }
