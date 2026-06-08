@@ -40,21 +40,29 @@ Rules:
 - tags: use only these ids when applicable: vegetarian, vegan, gluten-free, dairy-free, spicy, contains-nuts, contains-fish, contains-eggs`,
   "menu-extraction-user.txt":
     "Extract the full menu from this image. Return JSON only.",
-  "dish-enhancement.txt": `Professional food photography retouch of this exact dish photo.
+  "dish-enhancement.txt": `Professional food photography cutout of this exact dish photo.
 
 CRITICAL — preserve fidelity:
-- The dish must remain the SAME food: same ingredients, portions, plating, garnishes, and identity.
+- The dish must remain the SAME food: same ingredients, portions, plating, garnishes, bowl/plate, and identity.
 - Do NOT replace, reimagine, or stylize into a different meal. No AI fantasy food.
 - Do NOT add extra elements that were not in the original photo.
 
-Improve only:
-- Lighting (balanced, appetizing, natural)
-- Color accuracy and subtle contrast
-- Sharpness and noise reduction
-- Background: clean neutral surface or soft blur; remove clutter
-- Framing: centered hero shot, restaurant menu quality
+Background removal (for menu compositing):
+- Remove the entire background. Output a PNG with a fully transparent alpha channel.
+- Keep only the dish, its bowl/plate/utensils, and food — nothing else.
+- Clean, precise edges around the cutout: no white halos, no gray fringing, no leftover backdrop.
+- Include a soft, natural contact shadow directly beneath the bowl/plate only (subtle, semi-transparent) so the dish sits believably on any decorative menu background.
 
-Style: high-end restaurant menu photography — elegant, honest, mouth-watering, never over-processed or plastic-looking.`,
+Improve only:
+- Lighting on the food (balanced, appetizing, natural)
+- Color accuracy and subtle contrast
+- Sharpness and noise reduction on the dish itself
+
+Composition:
+- Keep the original framing and angle; do not crop aggressively or change the camera perspective.
+- Hero-quality restaurant menu asset, ready to place on a styled background (printed or digital menu collage).
+
+Output: PNG with transparent background. Style: honest, mouth-watering, never over-processed or plastic-looking.`,
 };
 
 async function loadPromptFile(filename: string): Promise<LoadedPrompt> {
