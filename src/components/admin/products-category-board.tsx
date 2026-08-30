@@ -390,6 +390,13 @@ export function ProductsCategoryBoard({
       </div>
 
       <DndContext
+        /**
+         * Stable id. Without it dnd-kit derives aria-describedby from a module
+         * global that keeps counting across renders, so the server emits
+         * DndDescribedBy-0 and the client hydrates expecting -1, and React
+         * reports a mismatch it will not patch up.
+         */
+        id="products-board"
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
