@@ -7,6 +7,13 @@ import {
 import { logLlmCallWithTiming } from "./llm-log";
 import fs from "fs/promises";
 import path from "path";
+import sharp from "sharp";
+import {
+  IMAGE_QUALITY,
+  IMAGE_SIZE,
+  INPUT_MAX_PX,
+  estimateImageCostUsd,
+} from "./image-config";
 
 export type ImageProvider = "nano-banana" | "openai";
 
@@ -45,6 +52,56 @@ export async function enhanceDishImage(
   return enhanceWithGemini(base64, mime, imageUrl, dishPrompt.text, promptLog);
 }
 
+/**
+ * Shrink the upload to `INPUT_MAX_PX` on its longest edge.
+ *
+ * Input images are billed by dimension, so posting a 2000px photo to get a
+ * 1024px render pays for pixels the model discards. Only ever downscales —
+ * `withoutEnlargement` keeps a small photo at its own size rather than
+ * upsampling it into a blurrier, more expensive one.
+ */
+async function shrinkForUpload(
+  buffer: Buffer,
+  mime: string
+): Promise<{ buffer: Buffer; mime: string; width?: number; height?: number }> {
+  try {
+    const img = sharp(buffer).rotate(); // honour EXIF orientation
+    const meta = await img.metadata();
+    const longest = Math.max(meta.width ?? 0, meta.height ?? 0);
+
+    if (longest && longest <= INPUT_MAX_PX) {
+      return { buffer, mime, width: meta.width, height: meta.height };
+    }
+
+    /*
+     * Keep a photograph a JPEG. Re-encoding one as PNG inflates it — a 622KB
+     * 1554px JPEG came back as a 2.1MB PNG, larger than the original it was
+     * meant to shrink. PNG is only worth it when there is alpha to preserve.
+     */
+    const resized = img.resize({
+      width: INPUT_MAX_PX,
+      height: INPUT_MAX_PX,
+      fit: "inside",
+      withoutEnlargement: true,
+    });
+
+    const out = await (meta.hasAlpha
+      ? resized.png({ compressionLevel: 9 })
+      : resized.jpeg({ quality: 90, mozjpeg: true })
+    ).toBuffer({ resolveWithObject: true });
+
+    return {
+      buffer: out.data,
+      mime: meta.hasAlpha ? "image/png" : "image/jpeg",
+      width: out.info.width,
+      height: out.info.height,
+    };
+  } catch {
+    // A resize failure must not block the enhancement — send the original.
+    return { buffer, mime };
+  }
+}
+
 async function enhanceWithOpenAI(
   imageBuffer: Buffer,
   mime: string,
@@ -57,22 +114,38 @@ async function enhanceWithOpenAI(
 
   const model = "gpt-image-1";
   const startedAt = Date.now();
+
+  const upload = await shrinkForUpload(imageBuffer, mime);
+
   const logInput = {
     endpoint: "images/edits",
     model,
-    size: "1024x1024",
+    size: IMAGE_SIZE,
+    quality: IMAGE_QUALITY,
+    background: "transparent",
     sourceImage: imageUrl,
-    imageBytes: imageBuffer.length,
-    mime,
+    originalBytes: imageBuffer.length,
+    uploadedBytes: upload.buffer.length,
+    uploadedDimensions:
+      upload.width && upload.height ? `${upload.width}x${upload.height}` : null,
+    mime: upload.mime,
   };
 
   const form = new FormData();
-  const blob = new Blob([new Uint8Array(imageBuffer)], { type: mime });
-  form.append("image", blob, "dish.jpg");
+  const blob = new Blob([new Uint8Array(upload.buffer)], { type: upload.mime });
+  form.append("image", blob, upload.mime === "image/png" ? "dish.png" : "dish.jpg");
   form.append("prompt", promptText);
   form.append("model", model);
   form.append("n", "1");
-  form.append("size", "1024x1024");
+  form.append("size", IMAGE_SIZE);
+  form.append("quality", IMAGE_QUALITY);
+  /*
+   * The whole point of the exercise: without background=transparent the API
+   * returns an opaque render and the menu collage has nothing to composite.
+   * Transparency requires a png (or webp) output format.
+   */
+  form.append("background", "transparent");
+  form.append("output_format", "png");
 
   try {
     const response = await fetch("https://api.openai.com/v1/images/edits", {
@@ -125,6 +198,24 @@ async function enhanceWithOpenAI(
     }
 
     const outBuffer = Buffer.from(b64, "base64");
+
+    /*
+     * Cost from the usage the API actually reports, rather than a hardcoded
+     * guess — the quality tier changes it by more than 10x, so a fixed
+     * figure in llm.log would be misleading precisely when it matters.
+     */
+    const usage = (data as { usage?: Parameters<typeof estimateImageCostUsd>[0] })
+      .usage;
+    const costUsd = usage ? estimateImageCostUsd(usage) : undefined;
+
+    /** Did the model actually return an alpha channel? */
+    let hasAlpha: boolean | null = null;
+    try {
+      hasAlpha = (await sharp(outBuffer).metadata()).hasAlpha ?? null;
+    } catch {
+      hasAlpha = null;
+    }
+
     await logLlmCallWithTiming(
       {
         provider: "openai",
@@ -135,11 +226,19 @@ async function enhanceWithOpenAI(
         output: {
           imageGenerated: true,
           outputBytes: outBuffer.length,
+          hasAlpha,
+          usage,
           apiMetadata: data,
         },
-        costUsd: 0.04,
-        costNote:
-          "estimate ~$0.04/image (gpt-image-1 edit, verify on OpenAI pricing)",
+        ...(costUsd !== undefined
+          ? {
+              costUsd,
+              costNote: `gpt-image-1 edit, quality=${IMAGE_QUALITY}, size=${IMAGE_SIZE}, from reported usage`,
+            }
+          : {
+              costUsd: 0,
+              costNote: "no usage reported by the API — cost unknown",
+            }),
       },
       startedAt
     );

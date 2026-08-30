@@ -13,6 +13,7 @@ type Props = {
   initialItems: ProductDTO[];
   currency: string;
   dishEnhancementPrompt: string;
+  imageSettings: { size: string; quality: string; inputMaxPx: number };
   dishEnhancementSource: string;
 };
 
@@ -21,6 +22,7 @@ export function ProductsManager({
   initialItems,
   currency,
   dishEnhancementPrompt,
+  imageSettings,
   dishEnhancementSource,
 }: Props) {
   const router = useRouter();
@@ -31,7 +33,7 @@ export function ProductsManager({
     null
   );
   const [provider, setProvider] = useState<"nano-banana" | "openai">(
-    "nano-banana"
+    "openai"
   );
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
@@ -252,17 +254,31 @@ export function ProductsManager({
         <summary className="px-4 py-2 text-sm text-[#5c534a] cursor-pointer">
           Optional: API auto-enhance (uses tokens)
         </summary>
-        <div className="px-4 pb-3 flex items-center gap-2">
-          <select
-            value={provider}
-            onChange={(e) =>
-              setProvider(e.target.value as "nano-banana" | "openai")
-            }
-            className="text-xs border border-[#e8e2d9] rounded-lg px-2 py-1 bg-white"
-          >
-            <option value="nano-banana">Nano Banana</option>
-            <option value="openai">OpenAI</option>
-          </select>
+        <div className="px-4 pb-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <select
+              value={provider}
+              onChange={(e) =>
+                setProvider(e.target.value as "nano-banana" | "openai")
+              }
+              className="text-xs border border-[#e8e2d9] rounded-lg px-2 py-1 bg-white"
+            >
+              <option value="openai">OpenAI (gpt-image-1)</option>
+              <option value="nano-banana">Nano Banana (Gemini)</option>
+            </select>
+            <span className="text-[11px] text-[#9a8f82]">
+              {imageSettings.size} · quality {imageSettings.quality} · upload
+              capped at {imageSettings.inputMaxPx}px
+            </span>
+          </div>
+          <p className="text-[11px] text-[#9a8f82] leading-relaxed">
+            Runs the same cut-out prompt automatically and saves a transparent
+            PNG. Cost per image is written to <code>llm.log</code> from the
+            usage the API reports. Tune with{" "}
+            <code>OPENAI_IMAGE_QUALITY</code>,{" "}
+            <code>OPENAI_IMAGE_SIZE</code> and{" "}
+            <code>DISH_IMAGE_INPUT_MAX_PX</code>.
+          </p>
         </div>
       </details>
 
