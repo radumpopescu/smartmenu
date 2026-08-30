@@ -1,0 +1,1321 @@
+<title>Edge Monolith Blueprint</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+<style>
+  :root {
+    --ground:        #f6f7f9;
+    --surface:       #ffffff;
+    --surface-sunk:  #eef1f5;
+    --ink:           #14181f;
+    --ink-soft:      #414b5a;
+    --ink-faint:     #6b7684;
+    --rule:          #d9dee6;
+    --rule-soft:     #e7eaf0;
+    --signal:        #0d6e78;
+    --signal-soft:   #e0f0f1;
+    --signal-deep:   #08505a;
+    --warn:          #9a5b06;
+    --warn-soft:     #fbeedb;
+    --danger:        #a32f2a;
+    --danger-soft:   #fbe9e7;
+
+    --f-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --f-body:    "Source Serif 4", Georgia, "Times New Roman", serif;
+    --f-mono:    "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    --measure: 68ch;
+    --shadow: 0 1px 2px rgba(20, 24, 31, .05), 0 8px 24px -12px rgba(20, 24, 31, .12);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:       #0f1216;
+      --surface:      #171b21;
+      --surface-sunk: #10141a;
+      --ink:          #e8ecf1;
+      --ink-soft:     #aeb8c4;
+      --ink-faint:    #7d8794;
+      --rule:         #2a313b;
+      --rule-soft:    #222831;
+      --signal:       #4fd0d8;
+      --signal-soft:  #10333a;
+      --signal-deep:  #a5e8ec;
+      --warn:         #e5ab55;
+      --warn-soft:    #33260f;
+      --danger:       #f08a80;
+      --danger-soft:  #37191a;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .6);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:       #0f1216;
+    --surface:      #171b21;
+    --surface-sunk: #10141a;
+    --ink:          #e8ecf1;
+    --ink-soft:     #aeb8c4;
+    --ink-faint:    #7d8794;
+    --rule:         #2a313b;
+    --rule-soft:    #222831;
+    --signal:       #4fd0d8;
+    --signal-soft:  #10333a;
+    --signal-deep:  #a5e8ec;
+    --warn:         #e5ab55;
+    --warn-soft:    #33260f;
+    --danger:       #f08a80;
+    --danger-soft:  #37191a;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 17px;
+    line-height: 1.65;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 24px 120px;
+  }
+
+  @media (min-width: 1024px) {
+    .wrap {
+      grid-template-columns: 210px minmax(0, 1fr);
+      gap: 56px;
+      padding: 0 40px 140px;
+    }
+  }
+
+  /* ---------- masthead ---------- */
+  .masthead {
+    grid-column: 1 / -1;
+    border-bottom: 1px solid var(--rule);
+    padding: 72px 0 40px;
+    margin-bottom: 56px;
+  }
+  .kicker {
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--signal);
+    margin: 0 0 20px;
+  }
+  h1 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: clamp(2.1rem, 5.2vw, 3.4rem);
+    line-height: 1.05;
+    letter-spacing: -.022em;
+    text-wrap: balance;
+    margin: 0 0 22px;
+    max-width: 20ch;
+  }
+  .standfirst {
+    font-size: 1.14rem;
+    line-height: 1.6;
+    color: var(--ink-soft);
+    max-width: 62ch;
+    margin: 0;
+  }
+  .masthead-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 30px;
+  }
+  .chip {
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    letter-spacing: .04em;
+    color: var(--ink-soft);
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 5px 10px;
+  }
+
+  /* ---------- side rail ---------- */
+  .rail { display: none; }
+  @media (min-width: 1024px) {
+    .rail {
+      display: block;
+      position: sticky;
+      top: 32px;
+      align-self: start;
+      max-height: calc(100vh - 64px);
+      overflow-y: auto;
+      padding-bottom: 40px;
+    }
+  }
+  .rail-title {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 14px;
+  }
+  .rail ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+  .rail a {
+    display: block;
+    font-family: var(--f-display);
+    font-size: 13.5px;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--ink-soft);
+    text-decoration: none;
+    padding: 6px 0 6px 12px;
+    border-left: 2px solid var(--rule-soft);
+    transition: color .15s, border-color .15s;
+  }
+  .rail a:hover, .rail a:focus-visible { color: var(--signal); border-left-color: var(--signal); }
+
+  /* ---------- content ---------- */
+  main { min-width: 0; }
+  section { margin-bottom: 76px; scroll-margin-top: 24px; }
+  section > * { max-width: var(--measure); }
+  section > .full { max-width: none; }
+
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: var(--signal);
+    margin: 0 0 10px;
+  }
+  h2 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: clamp(1.5rem, 3vw, 1.95rem);
+    line-height: 1.15;
+    letter-spacing: -.018em;
+    text-wrap: balance;
+    margin: 0 0 18px;
+  }
+  h3 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: 1.12rem;
+    line-height: 1.3;
+    letter-spacing: -.008em;
+    margin: 38px 0 12px;
+  }
+  p { margin: 0 0 18px; }
+  strong { font-weight: 600; color: var(--ink); }
+  a { color: var(--signal); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; border-radius: 2px; }
+
+  ul.body-list { margin: 0 0 18px; padding-left: 20px; }
+  ul.body-list li { margin-bottom: 9px; }
+
+  code {
+    font-family: var(--f-mono);
+    font-size: .855em;
+    background: var(--surface-sunk);
+    border: 1px solid var(--rule-soft);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: var(--ink);
+  }
+
+  pre {
+    font-family: var(--f-mono);
+    font-size: 13px;
+    line-height: 1.6;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    margin: 0 0 20px;
+    color: var(--ink-soft);
+  }
+  pre code { background: none; border: 0; padding: 0; font-size: inherit; color: inherit; }
+  pre .c { color: var(--ink-faint); font-style: italic; }
+  pre .k { color: var(--signal); font-weight: 500; }
+  pre .s { color: var(--warn); }
+
+  /* ---------- callouts ---------- */
+  .note {
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    background: var(--surface);
+    padding: 16px 20px;
+    margin: 0 0 20px;
+    box-shadow: var(--shadow);
+  }
+  .note p:last-child { margin-bottom: 0; }
+  .note-label {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 8px;
+  }
+  .note.rule    { border-left: 3px solid var(--danger); }
+  .note.rule    .note-label { color: var(--danger); }
+  .note.caution { border-left: 3px solid var(--warn); }
+  .note.caution .note-label { color: var(--warn); }
+  .note.tip     { border-left: 3px solid var(--signal); }
+  .note.tip     .note-label { color: var(--signal); }
+
+  /* ---------- diagrams ---------- */
+  .diagram {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 26px;
+    margin: 0 0 24px;
+    overflow-x: auto;
+    box-shadow: var(--shadow);
+  }
+  .diagram-cap {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 18px;
+  }
+
+  .stack { display: flex; flex-direction: column; gap: 0; min-width: 420px; }
+  .layer {
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr);
+    gap: 20px;
+    align-items: baseline;
+    padding: 13px 0;
+    border-bottom: 1px dashed var(--rule);
+  }
+  .layer:last-child { border-bottom: 0; }
+  .layer-name {
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--signal);
+    letter-spacing: .01em;
+  }
+  .layer-desc { font-size: 14.5px; line-height: 1.5; color: var(--ink-soft); }
+  .layer-desc em { color: var(--ink); font-style: normal; font-weight: 600; }
+
+  .topo { display: flex; flex-direction: column; gap: 14px; min-width: 460px; }
+  .topo-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 18px; align-items: center; }
+  .topo-tag {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    text-align: end;
+  }
+  .topo-boxes { display: flex; gap: 10px; flex-wrap: wrap; }
+  .box {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    padding: 9px 13px;
+    border-radius: 4px;
+    border: 1px solid var(--rule);
+    background: var(--surface-sunk);
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  .box.hot { border-color: var(--signal); background: var(--signal-soft); color: var(--signal-deep); font-weight: 500; }
+  .arrow { font-family: var(--f-mono); color: var(--ink-faint); font-size: 13px; align-self: center; }
+
+  /* ---------- tables ---------- */
+  .table-wrap { overflow-x: auto; margin: 0 0 22px; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 14.5px; }
+  th, td { text-align: start; padding: 12px 16px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; line-height: 1.5; }
+  th {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    background: var(--surface-sunk);
+    white-space: nowrap;
+  }
+  tr:last-child td { border-bottom: 0; }
+  td code { font-size: 12.5px; }
+  td.mono { font-family: var(--f-mono); font-size: 12.5px; color: var(--ink-soft); }
+
+  /* ---------- sequence ---------- */
+  ol.seq { list-style: none; counter-reset: s; margin: 0 0 22px; padding: 0; }
+  ol.seq li {
+    counter-increment: s;
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 16px;
+    padding: 0 0 18px;
+    position: relative;
+  }
+  ol.seq li::before {
+    content: counter(s, decimal-leading-zero);
+    font-family: var(--f-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--signal);
+    padding-top: 3px;
+  }
+  ol.seq li p { margin: 0; font-size: 15.5px; line-height: 1.55; }
+  ol.seq li p + p { margin-top: 5px; color: var(--ink-soft); font-size: 14.5px; }
+
+  footer {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--rule);
+    padding-top: 26px;
+    margin-top: 20px;
+    font-size: 14px;
+    color: var(--ink-faint);
+    max-width: var(--measure);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+
+  /* ---------- print / PDF ---------- */
+  @media print {
+    /* Force the light token set — a dark-mode OS must not produce a black PDF. */
+    :root {
+      --ground: #ffffff;  --surface: #ffffff;  --surface-sunk: #f2f4f7;
+      --ink: #000000;     --ink-soft: #33393f; --ink-faint: #5c646d;
+      --rule: #c8ced6;    --rule-soft: #dfe3e9;
+      --signal: #0a5b64;  --signal-soft: #e8f3f4; --signal-deep: #063f47;
+      --warn: #7d4a05;    --warn-soft: #f8eeda;
+      --danger: #8c2621;  --danger-soft: #f8e6e4;
+      --shadow: none;
+    }
+    @page { margin: 16mm 14mm; }
+
+    body { background: #fff; font-size: 10.5pt; line-height: 1.5; }
+    .wrap { display: block; max-width: none; padding: 0; }
+    .rail { display: none; }
+
+    .masthead { padding-top: 0; margin-bottom: 28px; break-after: avoid; }
+    h1 { font-size: 26pt; }
+    .standfirst { font-size: 11.5pt; }
+
+    section { margin-bottom: 26px; break-inside: auto; }
+    section > * { max-width: none; }
+    h2 { font-size: 15pt; break-after: avoid; }
+    h3 { font-size: 11.5pt; break-after: avoid; margin-top: 20px; }
+    p, li { orphans: 3; widows: 3; }
+
+    /* Keep atomic blocks whole across page breaks. */
+    .note, .diagram, .layer, ol.seq li, pre { break-inside: avoid; }
+    tr, thead { break-inside: avoid; }
+    thead { display: table-header-group; }
+
+    pre { font-size: 8.5pt; background: #f7f8fa; }
+    table { min-width: 0; font-size: 9.5pt; }
+    .stack, .topo { min-width: 0; }
+    .table-wrap, .diagram { overflow: visible; box-shadow: none; }
+
+    a { color: var(--ink); text-decoration: none; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="kicker">Reference architecture</p>
+    <h1>The Edge Monolith</h1>
+    <p class="standfirst">
+      A full-stack pattern for Cloudflare Workers: one deployable that serves the website and
+      the public API, a service layer that both entry paths share, and a small fleet of queue
+      consumers behind it. Structured so the API can be split out later without touching a
+      line of business logic.
+    </p>
+    <div class="masthead-meta">
+      <span class="chip">Workers</span>
+      <span class="chip">D1 + Drizzle</span>
+      <span class="chip">Hono</span>
+      <span class="chip">Next.js / OpenNext</span>
+      <span class="chip">Queues</span>
+    </div>
+  </header>
+
+  <nav class="rail" aria-label="Contents">
+    <p class="rail-title">Contents</p>
+    <ol>
+      <li><a href="#shape">The shape</a></li>
+      <li><a href="#packages">Package layout</a></li>
+      <li><a href="#factory">Service factory</a></li>
+      <li><a href="#layers">Backend layers</a></li>
+      <li><a href="#twopaths">Two call paths</a></li>
+      <li><a href="#frontend">Frontend</a></li>
+      <li><a href="#data">Data &amp; migrations</a></li>
+      <li><a href="#async">Queues &amp; async</a></li>
+      <li><a href="#auth">Auth &amp; identity</a></li>
+      <li><a href="#analytics">Analytics</a></li>
+      <li><a href="#devloop">Local dev</a></li>
+      <li><a href="#deploy">Deploy</a></li>
+      <li><a href="#pitfalls">Pitfalls</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <!-- ============ SHAPE ============ -->
+    <section id="shape">
+      <p class="eyebrow">Orientation</p>
+      <h2>The shape of the thing</h2>
+      <p>
+        The premise: a consumer product with a web app, a public HTTP API that a mobile client
+        and outside integrators consume, and a pile of asynchronous work that must not run in
+        the request path. Conventional advice says three services. This pattern says
+        <strong>one Worker for anything user-facing, plus consumers for the async work</strong> —
+        and it gets away with it because the business logic lives in a layer neither entry point owns.
+      </p>
+
+      <div class="diagram full">
+        <p class="diagram-cap">Runtime topology</p>
+        <div class="topo">
+          <div class="topo-row">
+            <span class="topo-tag">Clients</span>
+            <div class="topo-boxes">
+              <span class="box">Browser</span>
+              <span class="box">Mobile app</span>
+              <span class="box">Integrators</span>
+            </div>
+          </div>
+          <div class="topo-row">
+            <span class="topo-tag">Edge</span>
+            <div class="topo-boxes">
+              <span class="box hot">web worker &nbsp;·&nbsp; SSR + API</span>
+            </div>
+          </div>
+          <div class="topo-row">
+            <span class="topo-tag">Queues</span>
+            <div class="topo-boxes">
+              <span class="box">jobs-queue</span>
+              <span class="box">events-queue</span>
+              <span class="box">dead-letter</span>
+            </div>
+          </div>
+          <div class="topo-row">
+            <span class="topo-tag">Consumers</span>
+            <div class="topo-boxes">
+              <span class="box hot">job-processor</span>
+              <span class="box hot">event-processor</span>
+            </div>
+          </div>
+          <div class="topo-row">
+            <span class="topo-tag">State</span>
+            <div class="topo-boxes">
+              <span class="box">D1 &nbsp;SQL</span>
+              <span class="box">KV &nbsp;counters</span>
+              <span class="box">R2 &nbsp;blobs</span>
+              <span class="box">Vectorize</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h3>When this fits</h3>
+      <ul class="body-list">
+        <li>A product with one primary database and no need for independent scaling per domain.</li>
+        <li>A team small enough that a service mesh is overhead, not leverage.</li>
+        <li>Read-heavy traffic with modest, bounded write volume — the shape most consumer apps have.</li>
+      </ul>
+
+      <h3>When it does not</h3>
+      <ul class="body-list">
+        <li>Sustained high write throughput. SQLite at the edge has a single write primary; that ceiling is real.</li>
+        <li>Domains needing genuinely separate deploy cadence or blast radius.</li>
+        <li>Workloads needing long-running compute — Workers are request-scoped, with CPU-time limits.</li>
+      </ul>
+    </section>
+
+    <!-- ============ PACKAGES ============ -->
+    <section id="packages">
+      <p class="eyebrow">Repository</p>
+      <h2>Package layout</h2>
+      <p>
+        A <code>pnpm</code> workspace. The critical move is that <strong>the API is a library, not a
+        Worker</strong> — it has no deploy target of its own. Every runtime that needs business logic
+        imports it and supplies its own context.
+      </p>
+
+      <pre><code><span class="c"># packages/</span>
+api/                 <span class="c">library — services, controllers, schema, policies</span>
+web/                 <span class="c">deployable — Next.js + mounted HTTP API</span>
+job-processor/       <span class="c">deployable — queue consumer</span>
+event-processor/     <span class="c">deployable — queue consumer</span></code></pre>
+
+      <p>
+        Give <code>packages/api</code> a granular <code>exports</code> map rather than a single barrel.
+        The frontend imports validation schemas, DTO types, and constants directly from it; a
+        fine-grained export map is what stops the bundler from pulling server-only code into a
+        browser bundle.
+      </p>
+
+      <pre><code><span class="c">// packages/api/package.json</span>
+<span class="s">"exports"</span>: {
+  <span class="s">"."</span>:                  <span class="s">"./src/index.ts"</span>,
+  <span class="s">"./schemas/order"</span>:   <span class="s">"./src/schemas/order.ts"</span>,   <span class="c">// shared with forms</span>
+  <span class="s">"./services/dto/*"</span>:  <span class="s">"./src/services/dto/*.ts"</span>,  <span class="c">// wire types</span>
+  <span class="s">"./policies/actor"</span>:  <span class="s">"./src/policies/actor.ts"</span>
+}</code></pre>
+
+      <div class="note tip">
+        <span class="note-label">Why it pays off</span>
+        <p>
+          One Zod schema validates the browser form and the API request. One DTO type describes
+          what the endpoint returns and what the component renders. Contract drift between
+          frontend and backend stops being a category of bug.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============ FACTORY ============ -->
+    <section id="factory">
+      <p class="eyebrow">Core pattern</p>
+      <h2>The service factory</h2>
+      <p>
+        This is the keystone. Every unit of business logic is a class with a
+        <strong>private constructor</strong> and a <strong>static <code>make(ctx)</code></strong> factory
+        that declares exactly the dependencies it needs. Nothing injects a god-object context;
+        nothing reaches for a global.
+      </p>
+
+      <pre><code><span class="k">@Service</span>(<span class="s">"orderService"</span>)
+export class OrderService {
+  <span class="k">private</span> constructor(
+    <span class="k">private</span> db: Database,
+    <span class="k">private</span> pricing: PricingService,
+  ) {}
+
+  <span class="c">// The ONLY construction path. Compose ctx from your deps' ctx types,</span>
+  <span class="c">// so removing a dependency narrows the type and the compiler finds</span>
+  <span class="c">// every now-unnecessary field for you.</span>
+  <span class="k">static</span> make(
+    ctx: Parameters&lt;<span class="k">typeof</span> PricingService.make&gt;[<span class="s">0</span>] &amp; { var: { db: Database } },
+  ) {
+    <span class="k">return new</span> OrderService(ctx.var.db, PricingService.make(ctx));
+  }
+
+  <span class="k">async</span> place(actor: Actor, input: OrderInput) { <span class="c">/* … */</span> }
+}</code></pre>
+
+      <h3>The four rules</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Rule</th><th>Reason</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Private constructor</strong>, explicit deps</td>
+              <td>Makes the dependency surface visible and testable. Tests call <code>make({ var: { db: fake } })</code> — no framework, no container, no fake request.</td>
+            </tr>
+            <tr>
+              <td><strong>Services are stateless</strong></td>
+              <td>Worker isolates are recycled unpredictably. Instance caches produce bugs that only reproduce under load. Use a <code>static</code> field if you truly need a process-wide cache.</td>
+            </tr>
+            <tr>
+              <td><strong>Compose ctx types from deps</strong></td>
+              <td>The context type is derived, never hand-maintained. Refactors stay honest.</td>
+            </tr>
+            <tr>
+              <td><strong>Name the decorator explicitly</strong></td>
+              <td>Minifiers mangle class names. A bare <code>@Service()</code> that registers under <code>target.name</code> resolves to a hash in production and the lookup silently returns undefined.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note rule">
+        <span class="note-label">Hard rule</span>
+        <p>
+          <code>@Service("orderService")</code> — always pass the name string. This is the single
+          most expensive mistake to debug in this pattern, because it works perfectly in
+          development and fails only on the minified deploy.
+        </p>
+      </div>
+
+      <h3>Codegen closes the loop</h3>
+      <p>
+        A prebuild step scans for decorated classes and writes two artifacts: barrel files (so
+        importing the barrel executes the decorators and populates the registry) and a typed
+        registry via TypeScript module augmentation. The payoff is
+        <code>make.orderService.place(…)</code> — fully typed, no runtime container.
+      </p>
+      <pre><code><span class="c"># package.json</span>
+<span class="s">"prebuild"</span>: <span class="s">"node scripts/gen-barrels.mjs &amp;&amp; node scripts/gen-factory-types.mjs"</span>,
+<span class="s">"typecheck"</span>: <span class="s">"pnpm prebuild &amp;&amp; tsc --noEmit"</span></code></pre>
+      <p>
+        Generated files are gitignored and every script that needs them runs <code>prebuild</code>
+        first. A fresh clone will not typecheck until it has run — document that loudly in the
+        README, because the error message (<code>Cannot find module './services'</code>) does not
+        suggest the fix.
+      </p>
+    </section>
+
+    <!-- ============ LAYERS ============ -->
+    <section id="layers">
+      <p class="eyebrow">Backend</p>
+      <h2>Layers, and what belongs in each</h2>
+      <p>
+        Six layers. The discipline is not that they exist — most codebases claim layers — but that
+        each one has a rule about what it may <em>not</em> do.
+      </p>
+
+      <div class="diagram full">
+        <p class="diagram-cap">Request → response</p>
+        <div class="stack">
+          <div class="layer">
+            <span class="layer-name">route</span>
+            <span class="layer-desc">Parse and validate input, call one controller method, shape the response. <em>No business logic, no database access.</em></span>
+          </div>
+          <div class="layer">
+            <span class="layer-name">middleware</span>
+            <span class="layer-desc">Cross-cutting concerns: session resolution, rate limits, bot checks, origin checks, request-scoped DB client. <em>Never the sole place authorization happens.</em></span>
+          </div>
+          <div class="layer">
+            <span class="layer-name">controller</span>
+            <span class="layer-desc">Orchestrates a use case across services. <em>Enforces scopes and ownership itself</em>, taking an <code>Actor</code> — never a bare user id.</span>
+          </div>
+          <div class="layer">
+            <span class="layer-name">service</span>
+            <span class="layer-desc">The business logic. Stateless, constructed through <code>make()</code>. <em>Owns all database access.</em></span>
+          </div>
+          <div class="layer">
+            <span class="layer-name">policy</span>
+            <span class="layer-desc">Pure authorization predicates — <code>(actor, resource) → allowed | denied</code>. No I/O, trivially unit-testable.</span>
+          </div>
+          <div class="layer">
+            <span class="layer-name">dto</span>
+            <span class="layer-desc">Explicit wire shapes: column omission, computed fields, join flattening. <em>Rows are never serialized directly.</em></span>
+          </div>
+        </div>
+      </div>
+
+      <h3>The actor</h3>
+      <p>
+        Model the caller as a discriminated union, not a nullable user id. Anonymous is a
+        first-class case, so "logged out" can never be confused with "logged in but no
+        permissions".
+      </p>
+      <pre><code>export type Actor =
+  | { kind: <span class="s">"anonymous"</span> }
+  | {
+      kind: <span class="s">"user"</span>;
+      user_id: string;
+      scopes: Scope[];
+      memberships: Membership[];   <span class="c">// org/team access</span>
+      restricted: boolean;         <span class="c">// suspended, banned, etc.</span>
+    };</code></pre>
+
+      <h3>The error envelope</h3>
+      <p>
+        Fix one response shape for every failure, everywhere. Codes are machine-readable,
+        <code>SCREAMING_SNAKE_CASE</code>, and never localized — the client maps a code to a
+        translated string it owns.
+      </p>
+      <pre><code>{
+  <span class="s">"error"</span>: {
+    <span class="s">"code"</span>: <span class="s">"VALIDATION_FAILED"</span>,
+    <span class="s">"detail"</span>: {
+      <span class="s">"issues"</span>: [{ <span class="s">"path"</span>: <span class="s">"email"</span>, <span class="s">"message"</span>: <span class="s">"INVALID_EMAIL"</span> }]
+    }
+  }
+}</code></pre>
+      <p>
+        Emit field issues through a single shared helper. The moment two routes serialize
+        validation errors differently, the client-side parser that maps issues onto form fields
+        silently stops working for one of them — with no error to trace.
+      </p>
+    </section>
+
+    <!-- ============ TWO PATHS ============ -->
+    <section id="twopaths">
+      <p class="eyebrow">Critical</p>
+      <h2>Two call paths, one enforcement point</h2>
+      <p>
+        This is where the pattern's main security hazard lives, and it deserves its own section.
+        Business logic is reachable two ways:
+      </p>
+
+      <div class="diagram full">
+        <p class="diagram-cap">Both paths converge on the service layer</p>
+        <div class="topo">
+          <div class="topo-row">
+            <span class="topo-tag">Path A</span>
+            <div class="topo-boxes">
+              <span class="box">HTTP request</span><span class="arrow">→</span>
+              <span class="box">router</span><span class="arrow">→</span>
+              <span class="box hot">middleware<br>scope check</span><span class="arrow">→</span>
+              <span class="box">controller</span>
+            </div>
+          </div>
+          <div class="topo-row">
+            <span class="topo-tag">Path B</span>
+            <div class="topo-boxes">
+              <span class="box">Server action / RSC</span><span class="arrow">→</span>
+              <span class="box">withServices()</span><span class="arrow">→</span>
+              <span class="box">controller</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p>
+        Path B never touches the HTTP router — so <strong>route middleware does not run for it</strong>.
+        Any check that lives only in middleware is absent on the in-process path. A layout that
+        verifies "user has some admin scope" does not verify the specific verb the action performs.
+      </p>
+
+      <div class="note rule">
+        <span class="note-label">The rule that prevents the bug</span>
+        <p>
+          <strong>Enforce scopes inside the service or controller method, never only on the route.</strong>
+          The method takes the <code>Actor</code> and checks it before any mutation. Keep the route
+          middleware too — defense in depth and a clean 403 envelope — but treat it as a second
+          line, not the line.
+        </p>
+      </div>
+
+      <pre><code><span class="k">private</span> requireScope(actor: Actor, scope: Scope): string {
+  <span class="k">if</span> (actor.kind !== <span class="s">"user"</span> || !actor.scopes.includes(scope)) {
+    <span class="k">throw new</span> AppError(ErrorCode.FORBIDDEN, <span class="s">403</span>);
+  }
+  <span class="k">return</span> actor.user_id;  <span class="c">// hand back for audit logging</span>
+}</code></pre>
+
+      <p>
+        The tell for an unguarded method is its signature. A method typed
+        <code>(id: string)</code> or <code>(userId, actorId: string)</code> that performs a write is
+        trusting its caller. If a server action calls it, it is unguarded on the web path. Fix it
+        at the method, not the call site.
+      </p>
+
+      <h3>The in-process bridge</h3>
+      <p>
+        Path B needs an adapter that mirrors what the HTTP middleware chain builds: bindings,
+        a request-scoped database client, locale, and a resolved actor.
+      </p>
+      <pre><code>export <span class="k">async function</span> withServices&lt;T&gt;(
+  fn: (make: TypedFactory, ctx: Ctx) =&gt; Promise&lt;T&gt;,
+): Promise&lt;T&gt; {
+  <span class="k">const</span> { env, ctx: executionCtx } = getCloudflareContext();
+  <span class="k">const</span> db = drizzle(env.DB);
+  <span class="k">const</span> actor = <span class="k">await</span> resolveActor(env);   <span class="c">// mirrors optionalSession</span>
+  <span class="k">return</span> fn(ServiceFactory.createTyped({ env, var: { db }, actor }), ctx);
+}</code></pre>
+
+      <div class="note caution">
+        <span class="note-label">Two details worth stealing</span>
+        <p>
+          <strong>Race the session lookup against a timeout</strong> and fall back to anonymous.
+          Public pages resolve the actor for analytics but do not need it to render; a hung
+          session query should not hold the page hostage. Falling back to anonymous is fail-safe —
+          scope checks then see no scopes and deny.
+        </p>
+        <p>
+          <strong>Fail closed on a missing environment flag.</strong> If <code>ENVIRONMENT</code> is
+          absent, resolve it to production rather than letting downstream code read
+          <code>undefined</code> and quietly take the development branch — the one that stubs
+          payments and skips verification.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============ FRONTEND ============ -->
+    <section id="frontend">
+      <p class="eyebrow">Frontend</p>
+      <h2>The web layer</h2>
+      <p>
+        Next.js App Router compiled to a Worker via the OpenNext Cloudflare adapter. The HTTP API
+        mounts inside it as a catch-all route, so one deploy serves both.
+      </p>
+      <pre><code>app/
+  api/[[...route]]/route.ts   <span class="c">// the whole HTTP API mounts here</span>
+  [locale]/
+    (marketing)/              <span class="c">// public, crawlable</span>
+    (app)/                    <span class="c">// authenticated product</span>
+    (auth)/                   <span class="c">// sign-in, verification</span>
+  (admin)/admin/              <span class="c">// internal console, scope-gated</span></code></pre>
+
+      <h3>Rendering rule</h3>
+      <p>
+        Any page reaching for platform bindings must opt out of static prerendering. The context
+        accessor is synchronous and there is no request context at build time, so the build
+        aborts while prerendering.
+      </p>
+      <pre><code>export <span class="k">const</span> dynamic = <span class="s">"force-dynamic"</span>;   <span class="c">// first line of the file</span>
+
+<span class="k">import</span> { getSession } <span class="k">from</span> <span class="s">"@/lib/auth"</span>;</code></pre>
+      <p>
+        Make it a convention applied uniformly rather than a per-page judgment call. It is the
+        kind of rule that is invisible until a build fails at deploy time.
+      </p>
+
+      <h3>Composition discipline</h3>
+      <ul class="body-list">
+        <li><strong>Extract on the third copy, not the second.</strong> Two similar blocks are fine; three is the point at which the next contributor will cargo-cult a fourth.</li>
+        <li><strong>Share schemas, don't restate them.</strong> The form resolver consumes the same Zod schema the endpoint validates against.</li>
+        <li><strong>Normalize on the server.</strong> When a form's empty string means "clear this field", convert it to null in the API schema, not in each client. Web, mobile, and hand-written requests then behave identically.</li>
+      </ul>
+
+      <h3>Internationalization from day one</h3>
+      <p>
+        Retrofitting i18n is expensive; adopting it while the app is small is nearly free. Route
+        with a <code>[locale]</code> segment, and use CSS logical properties throughout —
+        <code>margin-inline-start</code> over <code>margin-left</code>, <code>text-align: start</code>
+        over <code>left</code>. Enforce it with a lint rule that fails the build on directional
+        utilities. If a right-to-left language ever ships, the layout already works.
+      </p>
+    </section>
+
+    <!-- ============ DATA ============ -->
+    <section id="data">
+      <p class="eyebrow">Data</p>
+      <h2>Database and migrations</h2>
+      <p>
+        D1 is managed SQLite: one database per environment, reached through a binding rather than
+        a connection string. Drizzle gives typed queries and generates migrations. Mirror your wire
+        casing in the schema — if the API speaks <code>snake_case</code>, name the columns
+        <code>snake_case</code> and no translation layer is needed.
+      </p>
+
+      <div class="note rule">
+        <span class="note-label">Never recreate a table</span>
+        <p>
+          Migration generators emit a "copy into <code>__new_table</code>, drop, rename" dance for
+          anything SQLite cannot express as a plain <code>ALTER</code> — adding a CHECK constraint,
+          relaxing NOT NULL, changing a primary key. <strong>Delete that and hand-write the
+          alternative.</strong>
+        </p>
+        <p>
+          It fails on D1 specifically, because each statement runs in its own implicit transaction:
+          <code>PRAGMA foreign_keys=OFF</code> resets before the <code>DROP</code>, which then trips
+          every foreign key pointing at the table. It is also dangerous in general — it copies every
+          row under a hold and leaves a half-migrated database if any statement fails.
+        </p>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Change</th><th>Do this instead</th></tr></thead>
+          <tbody>
+            <tr><td>Add / drop a column</td><td class="mono">ALTER TABLE t ADD COLUMN c text;</td></tr>
+            <tr><td>Relax NOT NULL</td><td>Stage values in a side column, alter, restore.</td></tr>
+            <tr><td>Add CHECK to an existing table</td><td>Don't. Enforce in the request schema and narrow at the DTO boundary on read.</td></tr>
+            <tr><td>Add CHECK to a new table</td><td>Fine — the recreate only fires when the table already exists.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Naming</h3>
+      <p>
+        Require a description on every generated migration. Default generators produce names like
+        <code>0007_curious_silver_falcon.sql</code>, which is useless in a log, useless when triaging
+        a failure, and useless in review.
+      </p>
+      <pre><code>pnpm db:generate --name add_order_status_index   <span class="c">✓</span>
+pnpm db:generate                                <span class="c">✗ reject in review</span></code></pre>
+      <p>
+        Enforce it with a prebuild check so the rule is mechanical rather than social.
+      </p>
+    </section>
+
+    <!-- ============ ASYNC ============ -->
+    <section id="async">
+      <p class="eyebrow">Asynchronous work</p>
+      <h2>Queues and the consumers</h2>
+      <p>
+        Get the mental model right: <strong>database writes are synchronous, in the request path.</strong>
+        A user places an order, the row commits, the response returns. Queues carry the
+        <em>side effects</em> — the work that must not block the response and needs retry semantics.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>In-request</th><th>Queued</th></tr></thead>
+          <tbody>
+            <tr><td>Domain writes the user must see reflected immediately</td><td>Notifications — email, SMS, push</td></tr>
+            <tr><td>Reads that render the response</td><td>Third-party sync (CRM, billing, search index)</td></tr>
+            <tr><td>Authorization and validation</td><td>Analytics events</td></tr>
+            <tr><td></td><td>Batch or AI jobs measured in seconds</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Consumer configuration</h3>
+      <pre><code><span class="c"># wrangler.toml — the consumer Worker</span>
+[[queues.consumers]]
+queue             = <span class="s">"jobs-{env}"</span>
+dead_letter_queue = <span class="s">"dlq-{env}"</span>
+max_batch_size    = <span class="s">5</span>
+max_retries       = <span class="s">10</span>
+
+<span class="c"># Consume the DLQ too — with no retries. Poisoned messages get</span>
+<span class="c"># logged and acked once instead of cycling forever.</span>
+[[queues.consumers]]
+queue          = <span class="s">"dlq-{env}"</span>
+max_retries    = <span class="s">0</span></code></pre>
+
+      <p>
+        Handlers dispatch on an event <code>type</code> field over a discriminated union, so adding
+        an event type is a compile error until every consumer handles it.
+      </p>
+
+      <div class="note caution">
+        <span class="note-label">The silent-drop trap</span>
+        <p>
+          Enqueueing inside <code>waitUntil()</code> is fire-and-forget: if the binding is missing,
+          it no-ops with no error. For events that genuinely matter, do a
+          <strong>direct, awaited send</strong> and require every call site to await it. A
+          non-awaited send can be lost when the isolate is evicted, and it leaves no trace.
+        </p>
+        <p>
+          One deliberate exception: paths that must return in constant time — verification-code
+          senders, where response timing would leak whether an account exists. There, wrap the send
+          in <code>waitUntil()</code> so the runtime still completes it after the response is sent.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============ AUTH ============ -->
+    <section id="auth">
+      <p class="eyebrow">Identity</p>
+      <h2>Authentication</h2>
+      <p>
+        Use a session library as the single source of truth rather than minting your own tokens:
+        cookies for browsers, <code>Authorization: Bearer</code> for mobile and integrators, both
+        resolving to the same session record. Store sessions in the same database as everything
+        else.
+      </p>
+
+      <h3>Verify at the app layer, not the auth layer</h3>
+      <p>
+        Sign-up mints a session immediately; email verification is enforced by your own gate. This
+        sounds like a small distinction and is not. It is what makes the multi-device flow work:
+        sign up on a laptop, tap the verification link on a phone, and the laptop session unblocks
+        on its next request — no second sign-in.
+      </p>
+      <pre><code>type SessionState =
+  | { state: <span class="s">"unauthenticated"</span> }
+  | { state: <span class="s">"unverified"</span>; user: User }
+  | { state: <span class="s">"verified"</span>;   user: User };</code></pre>
+      <p>
+        Trust a cached <code>verified</code> (the flag is monotonic — it never goes back), and
+        re-check the database when the cached value is <code>false</code>. That keeps the common
+        path free of a query while making the transition immediate.
+      </p>
+
+      <h3>Scopes</h3>
+      <p>
+        Store scopes on the session and expose them on the actor. Keep them coarse and verb-shaped
+        — <code>admin.users.write</code>, <code>admin.audit.read</code> — and remember the rule from
+        earlier: the method enforces them, not just the route.
+      </p>
+    </section>
+
+    <!-- ============ ANALYTICS ============ -->
+    <section id="analytics">
+      <p class="eyebrow">Instrumentation</p>
+      <h2>Analytics that stay trustworthy</h2>
+      <p>
+        Emit events server-side into a queue, enrich them in one place, and let a consumer forward
+        them to whichever product-analytics backend you use. Client-side SDKs are blocked, batched
+        away, and inconsistent across browsers; server-emitted events are not.
+      </p>
+
+      <ol class="seq">
+        <li>
+          <p><strong>Define events as a typed union.</strong></p>
+          <p>One module per domain area, each event a named shape with an explicit payload. Adding a property is a type change, so no consumer silently misses it.</p>
+        </li>
+        <li>
+          <p><strong>Enrich centrally, once.</strong></p>
+          <p>A single function attaches device, geo, attribution, consent, and bot signals — parsed from the request, coarsened deliberately. Backend-emitted events pass nulls rather than fabricating a device.</p>
+        </li>
+        <li>
+          <p><strong>Gate on consent at the source.</strong></p>
+          <p>Read the consent cookie during enrichment and drop or degrade the event there, so no downstream consumer has to remember the rule.</p>
+        </li>
+        <li>
+          <p><strong>Enqueue, never block.</strong></p>
+          <p>The request path pays a queue send, not a network round trip to a vendor.</p>
+        </li>
+        <li>
+          <p><strong>Forward in a consumer.</strong></p>
+          <p>Retries, batching, and vendor outages are the consumer's problem. Swapping vendors touches one handler.</p>
+        </li>
+      </ol>
+
+      <p>
+        <strong>Coarsen deliberately.</strong> Major browser and OS version, no patch numbers, no
+        device model. It is enough for product decisions and materially reduces how identifying
+        the event stream is.
+      </p>
+
+      <h3>Errors and observability</h3>
+      <p>
+        Ship an error tracker with a <strong>scrubbing module you own</strong> — a deny-list applied
+        before send, covering tokens, emails, phone numbers, and any field your domain treats as
+        sensitive. Default SDK scrubbing is not enough. Wrap the database client so query spans
+        appear on traces without instrumenting call sites.
+      </p>
+    </section>
+
+    <!-- ============ DEV ============ -->
+    <section id="devloop">
+      <p class="eyebrow">Developer experience</p>
+      <h2>The local loop</h2>
+      <p>
+        Target: clone, install, two commands, running app — with no cloud account required for
+        ordinary work. Everything except vector search has a local emulator.
+      </p>
+
+      <pre><code>pnpm install
+pnpm db:migrate:local          <span class="c"># creates the local SQLite file</span>
+pnpm dev                       <span class="c"># web + both consumers, in parallel</span></code></pre>
+
+      <p>
+        Run the consumers with <code>--persist-to</code> pointed at the web package's state
+        directory. All three processes then share one local database, one KV store, and one set of
+        queues — so a queued event produced by the web app is actually consumed locally. Without
+        this they each get a private, empty world and the integration never runs until staging.
+      </p>
+
+      <h3>Two env files, and the difference matters</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>File</th><th>Holds</th><th>Read by</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">.dev.vars</td><td>Server secrets — signing keys, API tokens</td><td>The Worker runtime, as <code>env.NAME</code></td></tr>
+            <tr><td class="mono">.env.local</td><td>Public values inlined into the browser bundle</td><td>The bundler, at build time</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Commit an annotated <code>.example</code> for each, gitignore the real ones, and say in the
+        comments what each value does, whether it is optional, and what happens when it is blank.
+        This file is the onboarding document people actually read.
+      </p>
+
+      <div class="note tip">
+        <span class="note-label">Degrade, don't fail</span>
+        <p>
+          Make every third-party integration no-op or stub when its credential is absent: payments
+          return a fake checkout URL, email logs the message and its links to the console, CRM sync
+          returns early. A new contributor should reach a working signup flow with zero external
+          accounts. Reserve real credentials for the specific feature someone is actively working on.
+        </p>
+      </div>
+
+      <div class="note caution">
+        <span class="note-label">Remote-only bindings</span>
+        <p>
+          Vector indexes have no local emulator; the binding proxies to a real dev-only index and
+          therefore requires an authenticated CLI session. Give that a documented fallback — a
+          config flag that disables the remote binding and degrades to keyword-only search — so a
+          developer who has not logged in can still run everything else. Put the fallback in a
+          comment beside the binding, not in a wiki.
+        </p>
+      </div>
+
+      <h3>Editing environment values</h3>
+      <p>
+        Server secrets are re-read when the dev server restarts. Public build-time values are
+        inlined into the bundle, so changing one requires a restart <em>and</em> a rebuild — the
+        running process keeps serving the old value with no warning. Worth a line in the README;
+        it costs people an afternoon otherwise.
+      </p>
+    </section>
+
+    <!-- ============ DEPLOY ============ -->
+    <section id="deploy">
+      <p class="eyebrow">Delivery</p>
+      <h2>Deployment</h2>
+      <p>
+        Branch-driven promotion. A commit is verified once and that exact SHA moves forward — no
+        rebuilds, no drift between what was tested and what ships.
+      </p>
+
+      <div class="diagram full">
+        <p class="diagram-cap">Promotion path</p>
+        <div class="topo">
+          <div class="topo-row">
+            <span class="topo-tag">Flow</span>
+            <div class="topo-boxes">
+              <span class="box">pull request</span><span class="arrow">→</span>
+              <span class="box">main</span><span class="arrow">→</span>
+              <span class="box hot">staging</span><span class="arrow">→</span>
+              <span class="box hot">production</span>
+            </div>
+          </div>
+          <div class="topo-row">
+            <span class="topo-tag">Per deploy</span>
+            <div class="topo-boxes">
+              <span class="box">wait for CI</span><span class="arrow">→</span>
+              <span class="box">migrate</span><span class="arrow">→</span>
+              <span class="box">push secrets</span><span class="arrow">→</span>
+              <span class="box">deploy workers</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h3>Gate on CI, but only run it once</h3>
+      <p>
+        The deploy's first job polls for the test and typecheck checks <em>on the same SHA</em> and
+        refuses to proceed without them. Pair that with a duplicate-action skip so a tree already
+        verified on the pull request is not rebuilt when the same tree lands on
+        <code>main</code> and then <code>staging</code>. Accept both <code>success</code> and
+        <code>skipped</code> as a pass. One pull request, one real CI run, and the deploy still
+        hard-gates on green.
+      </p>
+
+      <h3>Declare secrets, don't script them</h3>
+      <p>
+        Keep one manifest describing which secrets each Worker receives. The deploy reads it and
+        bulk-uploads; adding a secret is a one-line change with no workflow edit.
+      </p>
+      <pre><code><span class="c"># .github/worker-secrets.yml</span>
+workers:
+  web:
+    dir: packages/web
+    secrets:
+      SESSION_SECRET: SESSION_SECRET      <span class="c"># worker name ← GH secret name</span>
+      SENTRY_DSN:     SENTRY_DSN_WEB      <span class="c"># per-app alias</span>
+    optional:
+      - ANALYTICS_TOKEN                   <span class="c"># missing warns, doesn't fail</span></code></pre>
+
+      <p>Four homes for configuration, and choosing wrong is a slow leak:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Kind</th><th>Home</th></tr></thead>
+          <tbody>
+            <tr><td>Secrets — tokens, keys</td><td>Manifest <code>secrets:</code>, from environment-scoped store</td></tr>
+            <tr><td>Non-secret, same everywhere</td><td>Manifest <code>vars:</code> as a literal</td></tr>
+            <tr><td>Non-secret, differs per environment</td><td>Manifest <code>secrets:</code> — the per-env store is the point, not the sensitivity</td></tr>
+            <tr><td>Bindings and infra wiring</td><td><code>wrangler.toml</code> — also feeds local dev</td></tr>
+            <tr><td>Build-time public values</td><td>Manifest <code>build_env:</code>, resolved before the bundler runs</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Make anything not explicitly marked optional <strong>required</strong>, so a missing value
+        fails the deploy loudly instead of letting an environment drift into a half-configured
+        state that surfaces days later.
+      </p>
+
+      <h3>Migrations run before the deploy</h3>
+      <p>
+        A dedicated job applies migrations, then the Workers deploy in parallel. Because the
+        rule above forbids table recreation, migrations are additive and a new schema is
+        compatible with the currently-running code for the seconds between the two steps.
+      </p>
+    </section>
+
+    <!-- ============ PITFALLS ============ -->
+    <section id="pitfalls">
+      <p class="eyebrow">Field notes</p>
+      <h2>Pitfalls, ranked by cost</h2>
+      <p>
+        These are the failures that cost the most to diagnose — mostly because each one works
+        perfectly in development.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Privilege escalation via a server action</td>
+              <td>Scope checked in route middleware only; the in-process path skips it</td>
+              <td>Enforce in the method, taking the <code>Actor</code></td>
+            </tr>
+            <tr>
+              <td>Works locally, undefined service in production</td>
+              <td>Bare <code>@Service()</code>; minifier mangled the class name</td>
+              <td>Always pass the explicit name string</td>
+            </tr>
+            <tr>
+              <td>Events vanish under load</td>
+              <td>Non-awaited queue send lost on isolate eviction</td>
+              <td>Await every send; <code>waitUntil</code> only for constant-time paths</td>
+            </tr>
+            <tr>
+              <td>Migration fails on deploy, fine locally</td>
+              <td>Generated table-recreate; per-statement transactions defeat the FK pragma</td>
+              <td>Hand-write <code>ALTER</code>; never ship <code>__new_table</code></td>
+            </tr>
+            <tr>
+              <td>Build aborts prerendering a page</td>
+              <td>Platform context accessed at build time</td>
+              <td><code>export const dynamic = "force-dynamic"</code></td>
+            </tr>
+            <tr>
+              <td>Field-level form errors silently stop showing</td>
+              <td>A route serialized validation issues in a different shape</td>
+              <td>One shared serializer; make the wire shape unmissable</td>
+            </tr>
+            <tr>
+              <td>Fresh clone will not typecheck</td>
+              <td>Generated barrels and registry types absent</td>
+              <td>Run prebuild from every script that needs it</td>
+            </tr>
+            <tr>
+              <td>Env change appears to do nothing</td>
+              <td>Public value was inlined into the bundle at build time</td>
+              <td>Restart and rebuild; document the distinction</td>
+            </tr>
+            <tr>
+              <td>Repository clone is slow and growing</td>
+              <td>Binary assets committed; history keeps blobs after deletion</td>
+              <td>Serve from object storage behind a CDN; purge from history, not just <code>rm</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Two conventions worth adopting on day one</h3>
+      <ul class="body-list">
+        <li>
+          <strong>Binary assets never enter the repository.</strong> Images, fonts, video, audio go
+          to object storage behind a CDN and are referenced through one helper that prefixes the
+          base URL. Git keeps deleted blobs forever, so this is far cheaper to prevent than to fix.
+        </li>
+        <li>
+          <strong>Money is never a float.</strong> Pick an arbitrary-precision decimal library, wrap
+          it once with your own division and comparison helpers, and import only the wrapper — so
+          rounding policy has exactly one home.
+        </li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>
+        A pattern, not a prescription. The parts worth copying wholesale are the service factory,
+        the actor-based authorization rule, and the secrets manifest — each one prevents a class
+        of bug rather than merely organizing code. The rest should bend to your domain.
+      </p>
+    </footer>
+
+  </main>
+</div>
