@@ -7,14 +7,34 @@
  * tokens, and how big an image we upload in the first place.
  *
  * Rough output-token cost per 1024x1024 render: low ~272, medium ~1056,
- * high ~4160. Low is roughly 15x cheaper than high, which is why it is the
- * default here. Override per environment if a dish needs more detail.
+ * high ~4160. Low is roughly 15x cheaper and is the default here.
+ *
+ * Caveat worth knowing before trusting the output: at quality=low the model
+ * does not preserve the dish. Verified on a real photo — poached eggs came
+ * back as smooth yellow blobs and a rocket-and-sesame salad as a flat green
+ * mass. gpt-image-1 is a generative editor, so it redraws; prompt wording
+ * does not stop that. Raise quality for more detail, or use a segmentation
+ * (matting) model, which computes an alpha mask and cannot redraw at all.
  */
 
 export const IMAGE_SIZE = process.env.OPENAI_IMAGE_SIZE ?? "1024x1024";
 
 /** "low" | "medium" | "high" | "auto" */
 export const IMAGE_QUALITY = process.env.OPENAI_IMAGE_QUALITY ?? "low";
+
+/**
+ * How faithfully the edit must preserve the *input* image.
+ *
+ * Measured on a real dish (Oua Benedict, 1554x1460 JPEG), quality=low:
+ *   default -> $0.0179, redrew the food but kept the plate
+ *   high    -> $0.0595, 3.3x the cost and WORSE — dropped the plate
+ *              entirely and mangled the salmon into brown blobs
+ *
+ * So "high" is not the fix it sounds like, and the default stays. The real
+ * lever for detail is `quality` (output tokens): low is 272 tokens, which is
+ * simply too few to reconstruct a photograph. See the note on IMAGE_QUALITY.
+ */
+export const INPUT_FIDELITY = process.env.OPENAI_INPUT_FIDELITY ?? "low";
 
 /**
  * Longest edge we upload. Input images are billed by their dimensions, and

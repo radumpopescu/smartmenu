@@ -11,6 +11,7 @@ import sharp from "sharp";
 import {
   IMAGE_QUALITY,
   IMAGE_SIZE,
+  INPUT_FIDELITY,
   INPUT_MAX_PX,
   estimateImageCostUsd,
 } from "./image-config";
@@ -122,6 +123,7 @@ async function enhanceWithOpenAI(
     model,
     size: IMAGE_SIZE,
     quality: IMAGE_QUALITY,
+    inputFidelity: INPUT_FIDELITY,
     background: "transparent",
     sourceImage: imageUrl,
     originalBytes: imageBuffer.length,
@@ -146,6 +148,7 @@ async function enhanceWithOpenAI(
    */
   form.append("background", "transparent");
   form.append("output_format", "png");
+  form.append("input_fidelity", INPUT_FIDELITY);
 
   try {
     const response = await fetch("https://api.openai.com/v1/images/edits", {
@@ -233,7 +236,7 @@ async function enhanceWithOpenAI(
         ...(costUsd !== undefined
           ? {
               costUsd,
-              costNote: `gpt-image-1 edit, quality=${IMAGE_QUALITY}, size=${IMAGE_SIZE}, from reported usage`,
+              costNote: `gpt-image-1 edit, quality=${IMAGE_QUALITY}, size=${IMAGE_SIZE}, input_fidelity=${INPUT_FIDELITY}, from reported usage`,
             }
           : {
               costUsd: 0,
