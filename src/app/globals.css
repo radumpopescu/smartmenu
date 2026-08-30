@@ -67,6 +67,23 @@
   }
 
   .menu-dish-cutout {
+    /*
+     * drop-shadow (not box-shadow) so the shadow follows the PNG's alpha
+     * channel and hugs the silhouette of the plate. This is why the dish
+     * prompt forbids a shadow baked into the image — the two would stack.
+     */
     filter: drop-shadow(0 14px 22px rgba(26, 47, 74, 0.18));
+  }
+
+  /* Red starburst behind the NEW flash, echoing printed menu stickers. */
+  .menu-badge-burst {
+    background: #d63b3b;
+    clip-path: polygon(
+      50% 0%, 61% 12%, 76% 6%, 79% 22%, 95% 24%, 88% 38%, 100% 50%,
+      88% 62%, 95% 76%, 79% 78%, 76% 94%, 61% 88%, 50% 100%, 39% 88%,
+      24% 94%, 21% 78%, 5% 76%, 12% 62%, 0% 50%, 12% 38%, 5% 24%,
+      21% 22%, 24% 6%, 39% 12%
+    );
+    filter: drop-shadow(0 3px 6px rgba(26, 47, 74, 0.3));
   }
 }

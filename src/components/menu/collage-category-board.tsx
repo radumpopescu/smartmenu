@@ -88,7 +88,7 @@ export function CollageCategoryBoard({
                 slug={slug}
                 currency={currency}
                 accent={accent}
-                layoutIndex={index}
+                index={index}
               />
             ))}
           </div>
