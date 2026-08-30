@@ -10,6 +10,13 @@
  */
 export const dynamic = "force-dynamic";
 
+/**
+ * Codex image generation runs locally through the Codex CLI and can take
+ * several minutes. Without this the platform would cut the request off long
+ * before the image comes back.
+ */
+export const maxDuration = 900;
+
 import { createApp } from "@/server/http/app";
 
 const app = createApp();

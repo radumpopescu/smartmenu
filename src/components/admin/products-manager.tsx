@@ -13,7 +13,12 @@ type Props = {
   initialItems: ProductDTO[];
   currency: string;
   dishEnhancementPrompt: string;
-  imageSettings: { size: string; quality: string; inputMaxPx: number };
+  imageSettings: {
+    size: string;
+    quality: string;
+    inputMaxPx: number;
+    model: string;
+  };
   dishEnhancementSource: string;
 };
 
@@ -32,7 +37,7 @@ export function ProductsManager({
   const [uploadingEnhancedId, setUploadingEnhancedId] = useState<string | null>(
     null
   );
-  const [provider, setProvider] = useState<"nano-banana" | "openai">(
+  const [provider, setProvider] = useState<"nano-banana" | "openai" | "codex">(
     "openai"
   );
   const [error, setError] = useState("");
@@ -259,16 +264,23 @@ export function ProductsManager({
             <select
               value={provider}
               onChange={(e) =>
-                setProvider(e.target.value as "nano-banana" | "openai")
+                setProvider(e.target.value as "nano-banana" | "openai" | "codex")
               }
               className="text-xs border border-[#e8e2d9] rounded-lg px-2 py-1 bg-white"
             >
-              <option value="openai">OpenAI (gpt-image-1)</option>
+              <option value="openai">OpenAI ({imageSettings.model})</option>
+              <option value="codex">Codex (local, no tokens)</option>
               <option value="nano-banana">Nano Banana (Gemini)</option>
             </select>
             <span className="text-[11px] text-[#9a8f82]">
-              {imageSettings.size} · quality {imageSettings.quality} · upload
-              capped at {imageSettings.inputMaxPx}px
+              {provider === "codex" ? (
+                <>local Codex server · no API tokens · can take minutes</>
+              ) : (
+                <>
+                  {imageSettings.size} · quality {imageSettings.quality} ·
+                  upload capped at {imageSettings.inputMaxPx}px
+                </>
+              )}
             </span>
           </div>
           <p className="text-[11px] text-[#9a8f82] leading-relaxed">

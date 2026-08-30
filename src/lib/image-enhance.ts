@@ -9,6 +9,8 @@ import fs from "fs/promises";
 import path from "path";
 import sharp from "sharp";
 import {
+  CODEX_BASE_URL,
+  CODEX_TIMEOUT_MS,
   IMAGE_MODEL,
   IMAGE_QUALITY,
   IMAGE_SIZE,
@@ -17,7 +19,7 @@ import {
   estimateImageCostUsd,
 } from "./image-config";
 
-export type ImageProvider = "nano-banana" | "openai";
+export type ImageProvider = "nano-banana" | "openai" | "codex";
 
 async function readImageAsBase64(imagePath: string) {
   const absolute = imagePath.startsWith("/")
@@ -48,6 +50,9 @@ export async function enhanceDishImage(
   };
   const promptLog = promptsToLogSnapshot({ dishEnhancement: dishPrompt });
 
+  if (provider === "codex") {
+    return enhanceWithCodex(buffer, mime, imageUrl, dishPrompt.text, promptLog);
+  }
   if (provider === "openai") {
     return enhanceWithOpenAI(buffer, mime, imageUrl, dishPrompt.text, promptLog);
   }
@@ -411,4 +416,168 @@ async function enhanceWithGemini(
     }
     throw e;
   }
+}
+/**
+ * Local Codex image server — the OpenAI image shape over the Codex CLI's own
+ * ChatGPT login, so no API tokens are spent.
+ *
+ * Differences from the hosted path that shape this code:
+ *  - No API key. The guide is explicit that none should be supplied; the
+ *    Authorization header exists only for SDK compatibility and is ignored.
+ *  - Generations take minutes, not seconds, so the timeout is minutes too.
+ *  - `response_format: "url"` is preferred for local work. We fetch the file
+ *    from the server rather than round-tripping megabytes of base64 through
+ *    JSON and into the log.
+ */
+async function enhanceWithCodex(
+  imageBuffer: Buffer,
+  mime: string,
+  imageUrl: string,
+  promptText: string,
+  promptLog: ReturnType<typeof promptsToLogSnapshot>
+): Promise<Buffer> {
+  const startedAt = Date.now();
+  const model = "codex-imagegen";
+  const endpoint = `${CODEX_BASE_URL}/v1/images/edits`;
+
+  const upload = await shrinkForUpload(imageBuffer, mime);
+  const logInput = {
+    endpoint,
+    model,
+    size: IMAGE_SIZE,
+    sourceImage: imageUrl,
+    originalBytes: imageBuffer.length,
+    uploadedBytes: upload.buffer.length,
+    uploadedDimensions:
+      upload.width && upload.height ? `${upload.width}x${upload.height}` : null,
+    mime: upload.mime,
+  };
+
+  const form = new FormData();
+  form.append("model", model);
+  form.append(
+    "image",
+    new Blob([new Uint8Array(upload.buffer)], { type: upload.mime }),
+    upload.mime === "image/png" ? "dish.png" : "dish.jpg"
+  );
+  form.append("prompt", promptText);
+  form.append("size", IMAGE_SIZE);
+  form.append("n", "1");
+  form.append("response_format", "url");
+
+  async function fail(error: string, output?: unknown): Promise<never> {
+    await logLlmCallWithTiming(
+      {
+        provider: "codex",
+        model,
+        operation: "dish-image-enhance",
+        prompts: promptLog,
+        input: logInput,
+        output,
+        costUsd: 0,
+        costNote: "local Codex CLI — no API tokens",
+        error,
+      },
+      startedAt
+    );
+    throw new Error(error);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      // Accepted for SDK compatibility and never inspected by the server.
+      headers: { Authorization: "Bearer ignored" },
+      body: form,
+      signal: AbortSignal.timeout(CODEX_TIMEOUT_MS),
+    });
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    return fail(
+      `Could not reach the Codex image server at ${CODEX_BASE_URL}. ` +
+        `Start it with \`npm start\` in codex-image-gen, then retry. (${reason})`
+    );
+  }
+
+  const rawText = await response.text();
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(rawText) as Record<string, unknown>;
+  } catch {
+    data = { raw: rawText.slice(0, 2000) };
+  }
+
+  if (!response.ok) {
+    // The server uses the OpenAI error envelope.
+    const message =
+      (data as { error?: { message?: string } }).error?.message ??
+      `HTTP ${response.status}`;
+    return fail(
+      response.status === 502
+        ? `Codex generation failed: ${message}. Check result.json and codex-*.stderr.log in the generation folder.`
+        : `Codex image server error ${response.status}: ${message}`,
+      data
+    );
+  }
+
+  const body = data as {
+    generation_id?: string;
+    data?: { url?: string; b64_json?: string }[];
+  };
+  const first = body.data?.[0];
+  if (!first) return fail("Codex returned no image", data);
+
+  let outBuffer: Buffer;
+  if (first.b64_json) {
+    outBuffer = Buffer.from(first.b64_json, "base64");
+  } else if (first.url) {
+    try {
+      const fileRes = await fetch(first.url, {
+        signal: AbortSignal.timeout(60_000),
+      });
+      if (!fileRes.ok) {
+        return fail(`Could not download the generated image (${fileRes.status})`, data);
+      }
+      outBuffer = Buffer.from(await fileRes.arrayBuffer());
+    } catch (e) {
+      return fail(
+        `Could not download the generated image: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+        data
+      );
+    }
+  } else {
+    return fail("Codex returned neither a url nor b64_json", data);
+  }
+
+  let hasAlpha: boolean | null = null;
+  try {
+    hasAlpha = (await sharp(outBuffer).metadata()).hasAlpha ?? null;
+  } catch {
+    hasAlpha = null;
+  }
+
+  await logLlmCallWithTiming(
+    {
+      provider: "codex",
+      model,
+      operation: "dish-image-enhance",
+      prompts: promptLog,
+      input: logInput,
+      output: {
+        imageGenerated: true,
+        outputBytes: outBuffer.length,
+        hasAlpha,
+        generationId: body.generation_id ?? null,
+        imageUrl: first.url ?? null,
+      },
+      costUsd: 0,
+      costNote: "local Codex CLI — no API tokens",
+    },
+    startedAt
+  );
+
+  return outBuffer;
 }

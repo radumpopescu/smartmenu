@@ -2,7 +2,12 @@ import { ProductsManager } from "@/components/admin/products-manager";
 import { requireAdminPage } from "@/server/page";
 import { ProductController } from "@/server/controllers/product-controller";
 import { getDishEnhancementPrompt } from "@/lib/prompts";
-import { IMAGE_QUALITY, IMAGE_SIZE, INPUT_MAX_PX } from "@/lib/image-config";
+import {
+  IMAGE_MODEL,
+  IMAGE_QUALITY,
+  IMAGE_SIZE,
+  INPUT_MAX_PX,
+} from "@/lib/image-config";
 import { redirect } from "next/navigation";
 
 export default async function ProductsPage() {
@@ -38,6 +43,7 @@ export default async function ProductsPage() {
           size: IMAGE_SIZE,
           quality: IMAGE_QUALITY,
           inputMaxPx: INPUT_MAX_PX,
+          model: IMAGE_MODEL,
         }}
       />
     </div>

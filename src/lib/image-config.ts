@@ -86,3 +86,18 @@ export function estimateImageCostUsd(usage: {
     (out / 1_000_000) * RATES.imageOutput
   );
 }
+
+/**
+ * Local Codex image server.
+ *
+ * Speaks the OpenAI image shape but runs generation through the Codex CLI's
+ * own ChatGPT login, so it costs no API tokens. It is a local dev tool: it
+ * has to be running, and a generation can take minutes rather than seconds.
+ */
+export const CODEX_BASE_URL =
+  process.env.CODEX_IMAGE_URL ?? "http://127.0.0.1:8787";
+
+/** Generations are reported to take minutes; the guide asks for 15+. */
+export const CODEX_TIMEOUT_MS = Number(
+  process.env.CODEX_IMAGE_TIMEOUT_MS ?? 15 * 60 * 1000
+);

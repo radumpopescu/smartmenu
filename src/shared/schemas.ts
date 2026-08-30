@@ -95,7 +95,7 @@ export const activeStoreSchema = z.object({
 });
 
 export const enhanceSchema = z.object({
-  provider: z.enum(["nano-banana", "openai"]),
+  provider: z.enum(["nano-banana", "openai", "codex"]),
   sourceImageId: z.string().optional(),
 });
 
