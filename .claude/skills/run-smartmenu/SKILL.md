@@ -109,3 +109,9 @@ A screenshot of a booted server proves nothing. Minimum smoke run:
 - `npm run lint` and `npx tsc --noEmit` both pass; lint reports 3
   `react-hooks/set-state-in-effect` errors that are prop→state resets,
   not launch blockers.
+- The whole HTTP API is one Hono app behind `/api/[[...route]]`. To probe it
+  while signed in, run `fetch()` from the page via the browser JS tool rather
+  than `curl` — the session is an httpOnly cookie.
+- Errors come back as `{error:{code,message,detail?}}`. A 403 with
+  `Missing required scope: …` means the *service* refused, which is the
+  intended enforcement point, not a bug in the route.

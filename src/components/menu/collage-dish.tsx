@@ -1,4 +1,4 @@
-import type { PublicMenuItem } from "@/lib/stores";
+import type { ProductDTO } from "@/shared/types";
 import { DietaryBadgeIcons } from "@/components/dietary-badges";
 import { getDisplayMarketingBadges } from "@/lib/menu-badges";
 import { formatPrice } from "@/lib/utils";
@@ -66,7 +66,7 @@ export function CollageDish({
   accent,
   layoutIndex,
 }: {
-  item: PublicMenuItem;
+  item: ProductDTO;
   slug: string;
   currency: string;
   accent: string;
@@ -75,7 +75,7 @@ export function CollageDish({
   const layout = LAYOUTS[layoutIndex % LAYOUTS.length]!;
   const price = formatPrice(item.priceCents, item.priceLabel, currency);
   const badges = getDisplayMarketingBadges(item.tags, item.sortOrder);
-  const imageUrl = item.publicImageUrl;
+  const imageUrl = item.displayImageUrl;
 
   return (
     <Link

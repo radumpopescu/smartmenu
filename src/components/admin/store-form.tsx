@@ -1,11 +1,12 @@
 "use client";
 
-import type { Store } from "@/db/schema";
+import { readError } from "@/shared/api-error";
+import type { StoreDTO } from "@/shared/types";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function StoreForm({ store }: { store: Store | null }) {
+export function StoreForm({ store }: { store: StoreDTO | null }) {
   const router = useRouter();
   const [name, setName] = useState(store?.name ?? "");
   const [slug, setSlug] = useState(store?.slug ?? "");
@@ -48,8 +49,7 @@ export function StoreForm({ store }: { store: Store | null }) {
 
     setSaving(false);
     if (!res.ok) {
-      const data = await res.json();
-      setMessage(data.error ?? "Save failed");
+      setMessage(await readError(res, "Save failed"));
       return;
     }
     setMessage("Saved");

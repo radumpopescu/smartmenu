@@ -1,14 +1,13 @@
 "use client";
 
-import type { Category } from "@/db/schema";
-import type { PublicMenuItem } from "@/lib/stores";
+import type { CategoryDTO, ProductDTO } from "@/shared/types";
 import { CollageDish } from "@/components/menu/collage-dish";
 import { splitCategoryTitle } from "@/lib/menu-badges";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 type CategorySection = {
-  category: Category | null;
-  items: PublicMenuItem[];
+  category: CategoryDTO | null;
+  items: ProductDTO[];
   label: string;
 };
 

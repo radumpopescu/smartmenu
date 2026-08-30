@@ -1,9 +1,9 @@
 import { MenuImportWizard } from "@/components/admin/menu-import-wizard";
-import { requireAdminContext } from "@/lib/admin-context";
+import { requireAdminPage } from "@/server/page";
 import { redirect } from "next/navigation";
 
 export default async function ImportPage() {
-  const admin = await requireAdminContext();
+  const admin = await requireAdminPage();
   if (!admin.activeStoreId) redirect("/admin");
 
   return (

@@ -1,7 +1,7 @@
 "use client";
 
-import type { Category } from "@/db/schema";
-import type { MenuItemWithImages } from "@/lib/product-image-display";
+import { readError } from "@/shared/api-error";
+import type { CategoryDTO, ProductDTO } from "@/shared/types";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Copy, Check, Search } from "lucide-react";
@@ -9,8 +9,8 @@ import { ProductEditModal } from "@/components/admin/product-edit-modal";
 import { ProductsCategoryBoard } from "@/components/admin/products-category-board";
 
 type Props = {
-  initialCategories: Category[];
-  initialItems: MenuItemWithImages[];
+  initialCategories: CategoryDTO[];
+  initialItems: ProductDTO[];
   currency: string;
   dishEnhancementPrompt: string;
   dishEnhancementSource: string;
@@ -52,8 +52,7 @@ export function ProductsManager({
       body: form,
     });
     if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? "Upload failed");
+      setError(await readError(res, "Upload failed"));
       return;
     }
     const { item } = await res.json();
@@ -76,8 +75,7 @@ export function ProductsManager({
     });
     setUploadingEnhancedId(null);
     if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? "Upload failed");
+      setError(await readError(res, "Upload failed"));
       return;
     }
     const { item } = await res.json();
@@ -90,8 +88,7 @@ export function ProductsManager({
       method: "DELETE",
     });
     if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? "Delete failed");
+      setError(await readError(res, "Delete failed"));
       return;
     }
     const { item } = await res.json();
@@ -100,9 +97,9 @@ export function ProductsManager({
   }
 
   function mergeItemFromApi(
-    prev: MenuItemWithImages[],
-    item: MenuItemWithImages
-  ): MenuItemWithImages {
+    prev: ProductDTO[],
+    item: ProductDTO
+  ): ProductDTO {
     const existing = prev.find((i) => i.id === item.id);
     return {
       ...item,
@@ -117,8 +114,7 @@ export function ProductsManager({
       body: JSON.stringify({ hidden }),
     });
     if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? "Could not update visibility");
+      setError(await readError(res, "Could not update visibility"));
       return;
     }
     const { item } = await res.json();
@@ -139,8 +135,7 @@ export function ProductsManager({
       body: JSON.stringify({ displayImageId }),
     });
     if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? "Could not update menu photo");
+      setError(await readError(res, "Could not update menu photo"));
       return;
     }
     const { item } = await res.json();
@@ -157,8 +152,7 @@ export function ProductsManager({
     });
     setEnhancingId(null);
     if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? "Enhancement failed");
+      setError(await readError(res, "Enhancement failed"));
       return;
     }
     const { item } = await res.json();
@@ -200,8 +194,7 @@ export function ProductsManager({
     });
     setSavingId(null);
     if (!res.ok) {
-      const body = await res.json();
-      setError(body.error ?? "Save failed");
+      setError(await readError(res, "Save failed"));
       return;
     }
     const { item } = await res.json();

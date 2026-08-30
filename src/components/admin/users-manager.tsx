@@ -1,5 +1,6 @@
 "use client";
 
+import { readError } from "@/shared/api-error";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -49,8 +50,7 @@ export function UsersManager({
 
     setLoading(false);
     if (!res.ok) {
-      const data = await res.json();
-      setError(typeof data.error === "string" ? data.error : "Failed");
+      setError(await readError(res, "Failed"));
       return;
     }
 
@@ -66,11 +66,16 @@ export function UsersManager({
   }
 
   async function updateAssignments(userId: string, storeIds: string[]) {
-    await fetch(`/api/users/${userId}/stores`, {
+    const res = await fetch(`/api/users/${userId}/stores`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ storeIds }),
     });
+    if (!res.ok) {
+      setError(await readError(res, "Could not update store access"));
+      return;
+    }
+    setError("");
     setUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, storeIds } : u))
     );

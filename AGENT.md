@@ -43,26 +43,81 @@ The prompt instructs the model to keep the **same dish** (no AI slop) and only i
 
 ## Architecture (high level)
 
+The codebase follows the **Edge Monolith** pattern in `docs/edge-monolith-blueprint.html`,
+adapted to a single npm package. Cloudflare deployment is **not** in scope yet — the
+point of the structure is that adopting it later is a driver swap, not a rewrite.
+
 ```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Admin (auth)   │────▶│  Next.js API     │────▶│  SQLite + files │
-│  import/enhance │     │  Grok / Gemini / │     │  (uploads)      │
-│  CRUD menu      │     │  OpenAI          │     └─────────────────┘
-└─────────────────┘     └──────────────────┘
-                                    │
-                                    ▼
-                          ┌──────────────────┐
-                          │  Public menu     │
-                          │  /[slug]         │
-                          └──────────────────┘
+                 ┌──────────────── two entry paths ────────────────┐
+   HTTP ────▶ Hono router ──▶ middleware ──▶┐
+                                            ├──▶ controller ──▶ service ──▶ D1/SQLite
+   RSC  ────▶ withServices() ───────────────┘         │            │
+   server action                                      │            └─ policy (pure)
+                                                      └─ DTO (wire shape)
 ```
+
+### Layers, and what each may not do
+
+| Layer | Location | Rule |
+|-------|----------|------|
+| route | `src/server/http/routes/` | Parse input, call one controller method, shape the response. No business logic, no DB. |
+| middleware | `src/server/http/middleware.ts` | Context, auth guards. **Never the sole place authorization happens.** |
+| controller | `src/server/controllers/` | Orchestrates a use case; resolves the active store. Takes an `Actor`, never a bare user id. |
+| service | `src/server/services/` | The business logic. Stateless, built via `make(ctx)`. Owns all DB access. |
+| policy | `src/server/policies/` | Pure `(actor, resource) -> boolean`. No I/O. |
+| dto | `src/server/dto/` | Explicit wire shapes. Rows are never serialized directly. |
+
+### The rule that prevents privilege escalation
+
+Business logic is reachable **two ways**: over HTTP, and in-process from a server
+component via `withServices()`. The in-process path never runs route middleware, so a
+check that lives only there is absent for half the callers.
+
+**Scopes are enforced inside the service method**, via `requireStoreScope(actor, storeId, scope)`
+in `src/server/services/guard.ts`. Route middleware is kept as defense in depth and for a
+clean 403 envelope — it is the second line, not the line. `/api/stores` demonstrates this:
+its route only requires auth, and an operator is still refused by the service.
+
+### The actor
+
+`src/server/actor.ts` models the caller as a discriminated union, so "logged out" can
+never be confused with "logged in but unprivileged". It carries `storeIds`, which is what
+lets policies stay pure — no policy reaches for the database to answer "may they touch
+this store".
+
+### The error envelope
+
+Every failure is `{ error: { code, message, detail? } }` with a SCREAMING_SNAKE_CASE code
+(`src/server/errors.ts`). Throw `AppError`; never hand-roll a response body. Field issues
+go through the single `validationFailed()` serializer. The browser maps codes to text in
+`src/shared/api-error.ts` — call `readError(res, fallback)`, which always returns a
+string, so an envelope object can never reach JSX.
+
+### The client-safe boundary
+
+`src/shared/` may be imported by browser components: pure types (`types.ts`), Zod schemas
+shared by form and endpoint (`schemas.ts`), the error mapper, and display helpers. It must
+never import from `src/server/` or `src/db/`. `src/server/` is server-only.
+
+### Database portability
+
+Services depend on `Database` in `src/server/db.ts` — the *base* Drizzle SQLite type in
+both sync and async modes, not the better-sqlite3 client. Local dev binds better-sqlite3;
+D1 would bind the async driver. Two rules keep that true:
+
+1. **No `db.transaction()`.** D1 has no interactive transactions. Write sequential awaited
+   statements. (The pre-migration code passed un-executed query builders into a sync
+   transaction callback, which silently wrote nothing — product and category reordering
+   never persisted.)
+2. **No driver escape hatches** (`.run()`, `sqlite.pragma`, the raw handle) outside `src/db`.
 
 ## Tech stack
 
 | Layer | Choice |
 |-------|--------|
-| Framework | Next.js 15 App Router |
-| DB | Drizzle ORM + SQLite (`better-sqlite3`) |
+| Framework | Next.js 16 App Router |
+| HTTP API | Hono, mounted at `app/api/[[...route]]` |
+| DB | Drizzle ORM + SQLite (`better-sqlite3`); D1-portable |
 | Auth | Auth.js (credentials) for admin |
 | Menu OCR | xAI Grok API (`grok-4.3` with image, override via `XAI_MODEL`) |
 | Image enhance | `nano-banana` → Gemini image API; `openai` → OpenAI Images |
@@ -91,6 +146,23 @@ The prompt instructs the model to keep the **same dish** (no AI slop) and only i
 | `/admin/products` | List/edit dishes, upload & enhance photos |
 | `/admin/publish` | Preview public URL |
 
+## HTTP API
+
+The entire API is one Next route (`src/app/api/[[...route]]/route.ts`) that hands off to
+Hono. `/api/auth/*` stays on NextAuth's own more-specific catch-all and never reaches it.
+
+| Path | Scope required |
+|------|----------------|
+| `/api/products*` | `products.read` at the route, `products.write` in the service for mutations |
+| `/api/categories*` | `products.read` at the route, `categories.write` in the service |
+| `/api/store` | `store.read` / `store.write` |
+| `/api/stores` | auth at the route, **`admin.stores.write` in the service** |
+| `/api/users*` | `admin.users.write` |
+| `/api/menu/import*` | `menu.import` |
+| `/api/session/store` | auth; validates access before setting the cookie |
+| `/api/prompts` | auth (was public before the migration) |
+| `/api/dev/users` | development only |
+
 ## Public routes
 
 | Path | Purpose |
@@ -99,6 +171,10 @@ The prompt instructs the model to keep the **same dish** (no AI slop) and only i
 | `/[slug]/item/[id]` | Optional deep link to one dish |
 
 ## Data model (summary)
+
+> Note the naming split: the TS table is `stores` but the SQL table is still
+> `restaurants`, and `categories` / `menu_items` still carry `restaurant_id` columns while
+> the TS fields are `storeId`. Matters when writing raw SQL.
 
 - **users** — admin accounts
 - **restaurants** — name, slug, description, branding
@@ -125,6 +201,11 @@ Do not end a task with a dirty working tree unless the user explicitly asked to 
 - When API keys are missing, show clear admin errors; public site still renders cached menu.
 - All LLM/API calls append to **`llm.log`**: full **prompts** (from `prompts/*.txt`), sanitized inputs/outputs, token usage, estimated `cost_usd`. Override path via `LLM_LOG_PATH`. File is gitignored.
 - **Editable prompts** live in `prompts/` (not hardcoded). Loader: `src/lib/prompts.ts`. Restart dev server after edits.
+- **Never add a scope check only to a route.** Put it in the service method; see "The rule that prevents privilege escalation".
+- **Never call `db.transaction()`.** See "Database portability".
+- **Never widen a DTO to a raw row.** If a component needs a new field, add it to `src/shared/types.ts` and map it in `src/server/dto/`.
+- **Data migrations do not belong in a render path.** Use `src/scripts/` and an npm script (e.g. `npm run db:backfill-images`).
+- Run the app with the `run-smartmenu` skill; `npm rebuild better-sqlite3` after any Node version change.
 
 ## Roles & stores
 

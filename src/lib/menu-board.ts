@@ -1,13 +1,12 @@
-import type { Category } from "@/db/schema";
-import type { MenuItemWithImages } from "@/lib/product-image-display";
+import type { CategoryDTO, ProductDTO } from "@/shared/types";
 
 export const UNCATEGORIZED_CONTAINER = "uncategorized";
 
 export type ProductContainers = Record<string, string[]>;
 
 export function buildProductContainers(
-  categories: Category[],
-  items: MenuItemWithImages[]
+  categories: CategoryDTO[],
+  items: ProductDTO[]
 ): ProductContainers {
   const containers: ProductContainers = {
     [UNCATEGORIZED_CONTAINER]: [],
@@ -46,11 +45,11 @@ export function containersToReorderPayload(containers: ProductContainers) {
 }
 
 export function applyContainersToItems(
-  items: MenuItemWithImages[],
+  items: ProductDTO[],
   containers: ProductContainers
-): MenuItemWithImages[] {
+): ProductDTO[] {
   const byId = Object.fromEntries(items.map((i) => [i.id, i]));
-  const next: MenuItemWithImages[] = [];
+  const next: ProductDTO[] = [];
 
   for (const [containerId, productIds] of Object.entries(containers)) {
     const categoryId =

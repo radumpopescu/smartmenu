@@ -1,10 +1,7 @@
 "use client";
 
-import type { Category, ProductImage } from "@/db/schema";
-import {
-  getAdminPreviewImageUrl,
-  type MenuItemWithImages,
-} from "@/lib/product-image-display";
+import type { ProductDTO, CategoryDTO, ProductImageDTO } from "@/shared/types";
+import { adminPreviewUrl } from "@/shared/product-display";
 import { DietaryBadgePicker } from "@/components/dietary-badges";
 import {
   dietaryBadgeIdsToTags,
@@ -39,8 +36,8 @@ function centsFromLeiInput(value: string): number | null {
 }
 
 type Props = {
-  item: MenuItemWithImages;
-  categories: Category[];
+  item: ProductDTO;
+  categories: CategoryDTO[];
   currency: string;
   apiMode: boolean;
   copied: boolean;
@@ -144,7 +141,7 @@ export function ProductEditModal({
     });
   }
 
-  const previewUrl = getAdminPreviewImageUrl(item, item.images);
+  const previewUrl = adminPreviewUrl(item);
 
   return (
     <div
@@ -476,7 +473,7 @@ function ImageGalleryCard({
   onSelect,
   onDelete,
 }: {
-  image: ProductImage;
+  image: ProductImageDTO;
   selected: boolean;
   onSelect: () => void;
   onDelete: () => void;

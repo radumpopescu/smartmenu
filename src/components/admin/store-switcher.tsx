@@ -1,6 +1,6 @@
 "use client";
 
-import type { Store } from "@/db/schema";
+import type { StoreDTO } from "@/shared/types";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -8,7 +8,7 @@ export function StoreSwitcher({
   stores,
   activeStoreId,
 }: {
-  stores: Store[];
+  stores: StoreDTO[];
   activeStoreId: string | null;
 }) {
   const router = useRouter();

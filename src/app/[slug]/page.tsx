@@ -1,5 +1,5 @@
 import { PublicMenu } from "@/components/menu/public-menu";
-import { getPublishedMenu } from "@/lib/stores";
+import { loadPublicMenu } from "@/server/page";
 import { notFound } from "next/navigation";
 
 export default async function PublicMenuPage({
@@ -8,7 +8,7 @@ export default async function PublicMenuPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const menu = await getPublishedMenu(slug);
+  const menu = await loadPublicMenu(slug);
 
   if (!menu) notFound();
 

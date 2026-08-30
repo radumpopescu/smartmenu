@@ -1,8 +1,8 @@
 import { StoreForm } from "@/components/admin/store-form";
-import { requireAdminContext } from "@/lib/admin-context";
+import { requireAdminPage } from "@/server/page";
 
 export default async function StoreSettingsPage() {
-  const admin = await requireAdminContext();
+  const admin = await requireAdminPage();
 
   return (
     <div className="max-w-xl">

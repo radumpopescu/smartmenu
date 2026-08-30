@@ -2,7 +2,7 @@ import { parseTags } from "@/lib/utils";
 
 export type MarketingBadge = "new" | "bestseller";
 
-export function getMarketingBadges(tags: string | null): MarketingBadge[] {
+export function getMarketingBadges(tags: string | string[] | null): MarketingBadge[] {
   const tokens = parseTags(tags).map((t) => t.toLowerCase().trim());
   const badges: MarketingBadge[] = [];
 
@@ -21,7 +21,7 @@ export function getMarketingBadges(tags: string | null): MarketingBadge[] {
 }
 
 export function getDisplayMarketingBadges(
-  tags: string | null,
+  tags: string | string[] | null,
   sortOrder: number
 ): MarketingBadge[] {
   const fromTags = getMarketingBadges(tags);

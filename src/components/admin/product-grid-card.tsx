@@ -1,6 +1,6 @@
 "use client";
 
-import type { MenuItemWithImages } from "@/lib/product-image-display";
+import type { ProductDTO } from "@/shared/types";
 import { DietaryBadgeIcons } from "@/components/dietary-badges";
 import { formatPrice } from "@/lib/utils";
 import Image from "next/image";
@@ -8,7 +8,7 @@ import { ImageOff, GripVertical, EyeOff, Eye } from "lucide-react";
 import { forwardRef } from "react";
 
 type Props = {
-  item: MenuItemWithImages;
+  item: ProductDTO;
   currency: string;
   displayUrl: string | null;
   imageCount: number;

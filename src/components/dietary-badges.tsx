@@ -64,7 +64,7 @@ export function DietaryBadgeIcons({
   showLabels = false,
   className,
 }: {
-  tags: string | null;
+  tags: string | string[] | null;
   size?: "sm" | "md";
   accent?: string;
   /** Icon + text (e.g. dish detail page) */

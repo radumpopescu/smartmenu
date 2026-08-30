@@ -1,19 +1,18 @@
 "use client";
 
-import type { Category, Store } from "@/db/schema";
-import type { PublicMenuItem } from "@/lib/stores";
+import type { CategoryDTO, ProductDTO, StoreDTO } from "@/shared/types";
 import { CollageCategoryBoard } from "@/components/menu/collage-category-board";
 import { useMemo, useState } from "react";
 
 type Props = {
-  store: Store;
-  categories: Category[];
-  items: PublicMenuItem[];
+  store: StoreDTO;
+  categories: CategoryDTO[];
+  items: ProductDTO[];
 };
 
 type CategorySection = {
-  category: Category | null;
-  items: PublicMenuItem[];
+  category: CategoryDTO | null;
+  items: ProductDTO[];
   label: string;
 };
 

@@ -1,25 +1,14 @@
 import { ProductsManager } from "@/components/admin/products-manager";
-import { requireAdminContext } from "@/lib/admin-context";
-import { getFullMenuForAdmin } from "@/lib/stores";
-import { migrateLegacyProductImages } from "@/lib/product-images";
+import { requireAdminPage } from "@/server/page";
+import { ProductController } from "@/server/controllers/product-controller";
 import { getDishEnhancementPrompt } from "@/lib/prompts";
 import { redirect } from "next/navigation";
 
 export default async function ProductsPage() {
-  const admin = await requireAdminContext();
+  const admin = await requireAdminPage();
   if (!admin.activeStoreId) redirect("/admin");
 
-  await migrateLegacyProductImages();
-  const { sqlite } = await import("@/db");
-  const menuCols = sqlite
-    .prepare(`PRAGMA table_info(menu_items)`)
-    .all() as { name: string }[];
-  if (!menuCols.some((c) => c.name === "hidden")) {
-    sqlite.exec(
-      `ALTER TABLE menu_items ADD COLUMN hidden INTEGER DEFAULT 0 NOT NULL`
-    );
-  }
-  const menu = await getFullMenuForAdmin(admin.activeStoreId);
+  const menu = await ProductController.make(admin.ctx).board();
   const dishPrompt = await getDishEnhancementPrompt();
 
   return (

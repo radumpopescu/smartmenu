@@ -1,5 +1,6 @@
 "use client";
 
+import { readError } from "@/shared/api-error";
 import type { ExtractedMenu } from "@/lib/grok";
 import { formatPrice } from "@/lib/utils";
 import { useState } from "react";
@@ -37,8 +38,7 @@ export function MenuImportWizard({ currency = "RON" }: { currency?: string }) {
     setLoading(false);
 
     if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? "Extraction failed");
+      setError(await readError(res, "Extraction failed"));
       return;
     }
 
@@ -59,8 +59,7 @@ export function MenuImportWizard({ currency = "RON" }: { currency?: string }) {
 
     setApplying(false);
     if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? "Import failed");
+      setError(await readError(res, "Import failed"));
       return;
     }
 

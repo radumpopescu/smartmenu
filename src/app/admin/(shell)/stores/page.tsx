@@ -1,9 +1,9 @@
 import { StoresManager } from "@/components/admin/stores-manager";
-import { requireAdminContext } from "@/lib/admin-context";
+import { requireAdminPage } from "@/server/page";
 import { redirect } from "next/navigation";
 
 export default async function StoresAdminPage() {
-  const admin = await requireAdminContext();
+  const admin = await requireAdminPage();
   if (!admin.isSuperadmin) redirect("/admin");
 
   return (

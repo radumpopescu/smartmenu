@@ -1,4 +1,4 @@
-import { getPublishedMenu } from "@/lib/stores";
+import { loadPublicMenu } from "@/server/page";
 import { DietaryBadgeIcons } from "@/components/dietary-badges";
 import { getDisplayMarketingBadges, splitCategoryTitle } from "@/lib/menu-badges";
 import { formatPrice } from "@/lib/utils";
@@ -12,14 +12,14 @@ export default async function DishDetailPage({
   params: Promise<{ slug: string; id: string }>;
 }) {
   const { slug, id } = await params;
-  const menu = await getPublishedMenu(slug);
+  const menu = await loadPublicMenu(slug);
   if (!menu) notFound();
 
   const item = menu.items.find((i) => i.id === id);
   if (!item) notFound();
 
   const accent = menu.store.accentColor ?? "#2f6b45";
-  const imageUrl = item.publicImageUrl;
+  const imageUrl = item.displayImageUrl;
   const category = menu.categories.find((c) => c.id === item.categoryId);
   const categoryTitle = category ? splitCategoryTitle(category.name) : null;
   const price = formatPrice(

@@ -1,11 +1,9 @@
 "use client";
 
-import type { Category } from "@/db/schema";
+import { readError } from "@/shared/api-error";
+import type { ProductDTO, CategoryDTO } from "@/shared/types";
 import { ProductGridCard } from "@/components/admin/product-grid-card";
-import {
-  getAdminPreviewImageUrl,
-  type MenuItemWithImages,
-} from "@/lib/product-image-display";
+import { adminPreviewUrl } from "@/shared/product-display";
 import {
   UNCATEGORIZED_CONTAINER,
   applyContainersToItems,
@@ -55,12 +53,12 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Props = {
-  categories: Category[];
-  items: MenuItemWithImages[];
+  categories: CategoryDTO[];
+  items: ProductDTO[];
   currency: string;
   searchQuery: string;
-  onCategoriesChange: (categories: Category[]) => void;
-  onItemsChange: (items: MenuItemWithImages[]) => void;
+  onCategoriesChange: (categories: CategoryDTO[]) => void;
+  onItemsChange: (items: ProductDTO[]) => void;
   onOpenProduct: (id: string) => void;
   onToggleProductHidden: (id: string, hidden: boolean) => void;
   onError: (message: string) => void;
@@ -148,15 +146,14 @@ export function ProductsCategoryBoard({
         body: JSON.stringify({ items: containersToReorderPayload(nextContainers) }),
       });
       if (!res.ok) {
-        const data = await res.json();
-        onError(data.error ?? "Could not save order");
+        onError(await readError(res, "Could not save order"));
         setContainers(buildProductContainers(sortedCategories, items));
         return;
       }
       const { items: updated } = await res.json();
       const imageMap = new Map(items.map((i) => [i.id, i.images] as const));
       onItemsChange(
-        updated.map((row: MenuItemWithImages) => ({
+        updated.map((row: ProductDTO) => ({
           ...row,
           images: imageMap.get(row.id) ?? [],
         }))
@@ -173,8 +170,7 @@ export function ProductsCategoryBoard({
         body: JSON.stringify({ orderedIds }),
       });
       if (!res.ok) {
-        const data = await res.json();
-        onError(data.error ?? "Could not reorder categories");
+        onError(await readError(res, "Could not reorder categories"));
         return;
       }
       const { categories: updated } = await res.json();
@@ -288,7 +284,7 @@ export function ProductsCategoryBoard({
     });
     setSavingCategory(false);
     if (!res.ok) {
-      onError((await res.json()).error ?? "Could not create category");
+      onError(await readError(res, "Could not create category"));
       return;
     }
     const { category } = await res.json();
@@ -307,7 +303,7 @@ export function ProductsCategoryBoard({
       body: JSON.stringify({ name: trimmed }),
     });
     if (!res.ok) {
-      onError((await res.json()).error ?? "Could not rename category");
+      onError(await readError(res, "Could not rename category"));
       return;
     }
     const { category } = await res.json();
@@ -318,7 +314,7 @@ export function ProductsCategoryBoard({
     if (!confirm("Delete this empty category?")) return;
     const res = await fetch(`/api/categories/${id}`, { method: "DELETE" });
     if (!res.ok) {
-      onError((await res.json()).error ?? "Could not delete category");
+      onError(await readError(res, "Could not delete category"));
       return;
     }
     onCategoriesChange(categories.filter((c) => c.id !== id));
@@ -452,10 +448,7 @@ export function ProductsCategoryBoard({
             <ProductGridCard
               item={activeProduct}
               currency={currency}
-              displayUrl={getAdminPreviewImageUrl(
-                activeProduct,
-                activeProduct.images
-              )}
+              displayUrl={adminPreviewUrl(activeProduct)}
               imageCount={activeProduct.images.length}
               onOpen={() => {}}
               isDragging
@@ -486,9 +479,9 @@ function CategorySection({
   onDelete,
   canDelete,
 }: {
-  category: Category;
+  category: CategoryDTO;
   productIds: string[];
-  itemsById: Record<string, MenuItemWithImages>;
+  itemsById: Record<string, ProductDTO>;
   currency: string;
   dragDisabled: boolean;
   isSearching: boolean;
@@ -654,7 +647,7 @@ function UncategorizedSection({
   onToggleProductHidden,
 }: {
   productIds: string[];
-  itemsById: Record<string, MenuItemWithImages>;
+  itemsById: Record<string, ProductDTO>;
   currency: string;
   dragDisabled: boolean;
   isSearching: boolean;
@@ -726,7 +719,7 @@ function ProductContainerGrid({
   productIds: string[];
   visibleIds: string[];
   hiddenIds: string[];
-  itemsById: Record<string, MenuItemWithImages>;
+  itemsById: Record<string, ProductDTO>;
   currency: string;
   dragDisabled: boolean;
   showHidden: boolean;
@@ -815,7 +808,7 @@ function SortableProductCard({
   onOpen,
   onToggleHidden,
 }: {
-  item: MenuItemWithImages;
+  item: ProductDTO;
   containerId: string;
   currency: string;
   dragDisabled: boolean;
@@ -847,7 +840,7 @@ function SortableProductCard({
       style={style}
       item={item}
       currency={currency}
-      displayUrl={getAdminPreviewImageUrl(item, item.images)}
+      displayUrl={adminPreviewUrl(item)}
       imageCount={item.images.length}
       onOpen={onOpen}
       isDragging={isDragging}

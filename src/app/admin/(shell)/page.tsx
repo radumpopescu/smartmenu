@@ -1,24 +1,18 @@
-import { requireAdminContext } from "@/lib/admin-context";
-import { getFullMenuForAdmin } from "@/lib/stores";
+import { requireAdminPage } from "@/server/page";
+import { ProductController } from "@/server/controllers/product-controller";
 import Link from "next/link";
 import { Upload, UtensilsCrossed, Store, Eye, Building2, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export default async function AdminDashboardPage() {
-  const admin = await requireAdminContext();
+  const admin = await requireAdminPage();
 
   const menu = admin.activeStoreId
-    ? await getFullMenuForAdmin(admin.activeStoreId)
+    ? await ProductController.make(admin.ctx).board()
     : { categories: [], items: [] };
 
   const publishedCount = menu.items.filter((i) => i.published).length;
-  const withImages = menu.items.filter(
-    (i) =>
-      i.displayImageId != null ||
-      i.images.length > 0 ||
-      i.enhancedImageUrl ||
-      i.originalImageUrl
-  ).length;
+  const withImages = menu.items.filter((i) => i.displayImageUrl != null).length;
 
   return (
     <div>
@@ -31,7 +25,7 @@ export default async function AdminDashboardPage() {
           : admin.isSuperadmin
             ? "Select a store in the sidebar to manage its menu"
             : "Welcome"}
-        {admin.user.role === "superadmin" && (
+        {admin.actor.role === "superadmin" && (
           <span className="ml-2 text-xs uppercase tracking-wide text-[#c9a962]">
             superadmin
           </span>

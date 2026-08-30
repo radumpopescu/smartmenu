@@ -1,5 +1,5 @@
 import { AdminSidebar } from "@/components/admin/sidebar";
-import { requireAdminContext } from "@/lib/admin-context";
+import { requireAdminPage } from "@/server/page";
 import { redirect } from "next/navigation";
 
 export default async function AdminShellLayout({
@@ -7,16 +7,16 @@ export default async function AdminShellLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const admin = await requireAdminContext();
+  const admin = await requireAdminPage();
 
   if (
     !admin.isSuperadmin &&
-    admin.storeIds.length === 0
+    admin.actor.storeIds.length === 0
   ) {
     return (
       <div className="min-h-screen bg-[#f8f6f3] flex">
         <AdminSidebar
-          role={admin.user.role}
+          role={admin.actor.role}
           stores={[]}
           activeStoreId={null}
         />
@@ -41,7 +41,7 @@ export default async function AdminShellLayout({
   return (
     <div className="min-h-screen bg-[#f8f6f3] flex">
       <AdminSidebar
-        role={admin.user.role}
+        role={admin.actor.role}
         stores={admin.stores}
         activeStoreId={admin.activeStoreId}
         activeSlug={admin.activeStore?.slug}

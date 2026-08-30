@@ -1,5 +1,6 @@
 "use client";
 
+import { readError } from "@/shared/api-error";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -34,8 +35,7 @@ export function StoresManager({ initialStores }: { initialStores: StoreRow[] }) 
 
     setLoading(false);
     if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? "Failed to create store");
+      setError(await readError(res, "Failed to create store"));
       return;
     }
 

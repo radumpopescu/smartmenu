@@ -1,5 +1,4 @@
 import { parseTags } from "@/lib/utils";
-import type { LucideIcon } from "lucide-react";
 import {
   Leaf,
   Sprout,
@@ -57,7 +56,9 @@ function normalizeToken(raw: string): DietaryBadgeId | null {
 }
 
 /** Map stored/imported tags to known badge ids (stable catalog order). */
-export function parseDietaryBadgeIds(tags: string | null): DietaryBadgeId[] {
+export function parseDietaryBadgeIds(
+  tags: string | string[] | null
+): DietaryBadgeId[] {
   const tokens = parseTags(tags);
   const found = new Set<DietaryBadgeId>();
   for (const t of tokens) {

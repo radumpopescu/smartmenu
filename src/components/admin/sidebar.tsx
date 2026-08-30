@@ -15,7 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { signOut } from "next-auth/react";
 import { StoreSwitcher } from "./store-switcher";
-import type { Store as StoreType, UserRole } from "@/db/schema";
+import type { StoreDTO, UserRole } from "@/shared/types";
 
 const storeLinks = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -36,7 +36,7 @@ export function AdminSidebar({
   activeSlug,
 }: {
   role: UserRole;
-  stores: StoreType[];
+  stores: StoreDTO[];
   activeStoreId: string | null;
   activeSlug?: string;
 }) {
