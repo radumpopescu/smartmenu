@@ -6,9 +6,22 @@ export type LoadedPrompt = {
   sourceFile: string;
 };
 
+export {
+  renderPrompt,
+  dishPromptVars,
+  type PromptVars,
+} from "@/shared/prompt-template";
+
 const PROMPTS_DIR =
   process.env.PROMPTS_DIR ?? path.join(process.cwd(), "prompts");
 
+/**
+ * Safety net only. The files in `prompts/` are tracked in git and are the
+ * source of truth; these fire only if one has been deleted. They are kept
+ * deliberately short — a long duplicate would silently drift out of step with
+ * the real prompt — and the loader reports "(fallback)" as the source so the
+ * admin UI shows when one was used.
+ */
 const FALLBACKS: Record<string, string> = {
   "menu-extraction-system.txt": `You are a restaurant menu digitization expert. Extract every menu item from the image with high accuracy.
 
@@ -16,56 +29,28 @@ Return ONLY valid JSON (no markdown) matching this schema:
 {
   "restaurantName": string | null,
   "categories": [
-    {
-      "name": string,
-      "items": [
-        {
-          "name": string,
-          "description": string | null,
-          "priceCents": number | null,
-          "priceLabel": string | null,
-          "tags": string[]
-        }
-      ]
-    }
+    { "name": string, "items": [ { "name": string, "description": string | null, "priceCents": number | null, "priceLabel": string | null, "tags": string[] } ] }
   ]
 }
 
 Rules:
-- priceCents: convert prices to integer minor units (bani for RON: 25,50 lei → 2550). Use null if unclear.
-- priceLabel: use for ranges or "MP" / "Preț la cerere" instead of priceCents.
+- priceCents: convert prices to integer minor units (bani for RON: 25,50 lei -> 2550). Use null if unclear.
+- priceLabel: use for ranges or "MP" / "Pret la cerere" instead of priceCents.
 - Assume Romanian lei when currency is not shown on the menu.
 - Preserve original language and spelling.
 - Include all sections visible on the menu.
 - tags: use only these ids when applicable: vegetarian, vegan, gluten-free, dairy-free, spicy, contains-nuts, contains-fish, contains-eggs`,
+
   "menu-extraction-user.txt":
     "Extract the full menu from this image. Return JSON only.",
-  "dish-enhancement.txt": `BACKGROUND REMOVAL ONLY — edit this existing photograph, do NOT generate a new image.
 
-You are performing a photo cutout/masking task on the attached dish photo. The food must look like the SAME photograph with the backdrop erased — not a re-render, not a re-plate, not a stylized remake.
+  "dish-enhancement.txt": `Cut the dish out of the attached photo and return it on a fully transparent background.
 
-ABSOLUTE RULES — do not break these:
-- Copy the dish exactly: same shapes, sizes, colors, textures, imperfections, and arrangement.
-- Same bowl/plate: identical color, glaze, rim, angle, and reflections.
-- Same food geometry: if eggs are irregular, broken, or flat in the original, keep them that way. Do NOT make eggs rounder, puffier, taller, or more symmetrical.
-- Same garnishes and portions: do NOT add, remove, move, or duplicate any ingredient.
-- Do NOT add extra sauce, oil pools, spice dust, steam, crumbs, or props.
-- Do NOT apply beauty filters, studio relighting, HDR, gloss, plastic smoothing, or "AI food photography" styling.
-- Do NOT change the camera angle, crop, zoom, or perspective.
+This is a masking job on an existing photograph, not image generation. Keep the plate and everything on it exactly as photographed — same shapes, colours, textures, portions, angle and lighting. Erase everything else (table, background, props, hands, text) to a real alpha channel, not white or grey.
 
-Your ONLY allowed edits:
-1. Delete the background → fully transparent alpha (PNG).
-2. Keep the dish, bowl/plate, utensils, and all food pixels intact.
-3. Clean cutout edges: no white halos, gray fringing, or leftover backdrop.
-4. Optional: a very subtle, semi-transparent contact shadow directly under the bowl/plate only.
+Do not beautify, relight, tidy, or re-plate the food. Do not add steam, sauce, or garnish. Cut edges tight with no white halo. Do not add a drop shadow — the layout adds its own.
 
-Forbidden outputs:
-- Regenerated food that looks "prettier" but different from the source
-- Oversaturated colors, waxy textures, or fake shine on eggs/sauce
-- Crowded or rearranged composition
-- Any change to what the dish actually looks like in the original photo
-
-Output: PNG with transparent background. The result should be indistinguishable from the original photo except the background is gone.`,
+Output: one PNG, transparent background, highest resolution available.`,
 };
 
 async function loadPromptFile(filename: string): Promise<LoadedPrompt> {

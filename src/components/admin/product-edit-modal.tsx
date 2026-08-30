@@ -2,6 +2,8 @@
 
 import type { ProductDTO, CategoryDTO, ProductImageDTO } from "@/shared/types";
 import { adminPreviewUrl } from "@/shared/product-display";
+import { dishPromptVars, renderPrompt } from "@/shared/prompt-template";
+import { useMemo } from "react";
 import { DietaryBadgePicker } from "@/components/dietary-badges";
 import {
   dietaryBadgeIdsToTags,
@@ -40,7 +42,8 @@ type Props = {
   categories: CategoryDTO[];
   currency: string;
   apiMode: boolean;
-  copied: boolean;
+  /** Template with {{name}}/{{description}}; rendered per dish here. */
+  dishEnhancementPrompt: string;
   enhancing: boolean;
   uploadingEnhanced: boolean;
   saving: boolean;
@@ -61,7 +64,6 @@ type Props = {
   onSetDisplayImage: (displayImageId: string | null) => void;
   onEnhance: (sourceImageId?: string) => void;
   onDelete: () => void;
-  onCopyPrompt: () => void;
 };
 
 export function ProductEditModal({
@@ -69,7 +71,7 @@ export function ProductEditModal({
   categories,
   currency,
   apiMode,
-  copied,
+  dishEnhancementPrompt,
   enhancing,
   uploadingEnhanced,
   saving,
@@ -81,7 +83,6 @@ export function ProductEditModal({
   onSetDisplayImage,
   onEnhance,
   onDelete,
-  onCopyPrompt,
 }: Props) {
   const [name, setName] = useState(item.name);
   const [description, setDescription] = useState(item.description ?? "");
@@ -203,14 +204,7 @@ export function ProductEditModal({
                 <ImagePlus size={12} />
                 {uploadingEnhanced ? "Uploading…" : "Add enhanced"}
               </button>
-              <button
-                type="button"
-                onClick={onCopyPrompt}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs border rounded-lg"
-              >
-                {copied ? <Check size={12} /> : <Copy size={12} />}
-                Prompt
-              </button>
+
               {apiMode && originals.length > 0 && (
                 <button
                   type="button"
@@ -225,6 +219,13 @@ export function ProductEditModal({
                 </button>
               )}
             </div>
+
+            <CutoutWorkflow
+              item={item}
+              template={dishEnhancementPrompt}
+              hasOriginal={originals.length > 0}
+              onPickEnhanced={() => uploadEnhancedRef.current?.click()}
+            />
 
             {apiMode && originals.length > 1 && (
               <select
@@ -570,6 +571,117 @@ function Field({
     <div>
       <label className="block text-sm text-[#5c534a] mb-1">{label}</label>
       {children}
+    </div>
+  );
+}
+/**
+ * The manual cutout loop.
+ *
+ * No API credits are spent here: the operator copies a prompt written for
+ * *this* dish, runs it against the original photo in ChatGPT (or any image
+ * editor), and uploads the transparent PNG back. The prompt is rendered in the
+ * browser from the template the server sent, so it costs no round trip.
+ */
+function CutoutWorkflow({
+  item,
+  template,
+  hasOriginal,
+  onPickEnhanced,
+}: {
+  item: ProductDTO;
+  template: string;
+  hasOriginal: boolean;
+  onPickEnhanced: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [showPrompt, setShowPrompt] = useState(false);
+
+  const prompt = useMemo(
+    () => renderPrompt(template, dishPromptVars(item)),
+    [template, item]
+  );
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Clipboard is blocked in some contexts — reveal the text to copy by hand.
+      setShowPrompt(true);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-[#c9a962]/40 bg-[#fdfaf4] p-3 space-y-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium text-[#1a1612]">
+          Make a transparent cut-out
+        </p>
+        <span className="text-[10px] uppercase tracking-wide text-[#9a8f82]">
+          No tokens
+        </span>
+      </div>
+
+      <ol className="text-[11px] text-[#5c534a] space-y-1 list-decimal list-inside leading-relaxed">
+        <li>
+          Copy the prompt — it already names <strong>{item.name}</strong>.
+        </li>
+        <li>
+          Open{" "}
+          <a
+            href="https://chatgpt.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline text-[#8a6d2f] hover:text-[#c9a962]"
+          >
+            ChatGPT
+          </a>
+          , attach the original photo, paste, send.
+        </li>
+        <li>Save the PNG, then add it as an enhanced photo.</li>
+      </ol>
+
+      {!hasOriginal && (
+        <p className="text-[11px] text-[#a35b2a]">
+          Add an original photo first — there is nothing to cut out yet.
+        </p>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={copy}
+          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs bg-[#1a1612] text-white rounded-lg"
+        >
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+          {copied ? "Copied for this dish" : "Copy prompt"}
+        </button>
+        <button
+          type="button"
+          onClick={onPickEnhanced}
+          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs border border-[#e8e2d9] rounded-lg hover:bg-white"
+        >
+          <ImagePlus size={12} />
+          Upload the PNG
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowPrompt((v) => !v)}
+          className="px-2.5 py-1.5 text-xs text-[#8a7f72] underline"
+        >
+          {showPrompt ? "Hide" : "Preview"}
+        </button>
+      </div>
+
+      {showPrompt && (
+        <textarea
+          readOnly
+          value={prompt}
+          onFocus={(e) => e.currentTarget.select()}
+          className="w-full h-40 text-[10px] leading-relaxed font-mono border border-[#e8e2d9] rounded-lg p-2 bg-white text-[#5c534a]"
+        />
+      )}
     </div>
   );
 }

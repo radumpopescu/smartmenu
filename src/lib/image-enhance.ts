@@ -1,4 +1,9 @@
-import { getDishEnhancementPrompt, promptsToLogSnapshot } from "./prompts";
+import {
+  getDishEnhancementPrompt,
+  promptsToLogSnapshot,
+  renderPrompt,
+  type PromptVars,
+} from "./prompts";
 import { logLlmCallWithTiming } from "./llm-log";
 import fs from "fs/promises";
 import path from "path";
@@ -22,10 +27,16 @@ async function readImageAsBase64(imagePath: string) {
 
 export async function enhanceDishImage(
   imageUrl: string,
-  provider: ImageProvider
+  provider: ImageProvider,
+  /** Fills `{{name}}` / `{{description}}` — same template the admin copies. */
+  vars: PromptVars = {}
 ): Promise<Buffer> {
   const { buffer, mime, base64 } = await readImageAsBase64(imageUrl);
-  const dishPrompt = await getDishEnhancementPrompt();
+  const loaded = await getDishEnhancementPrompt();
+  const dishPrompt = {
+    ...loaded,
+    text: renderPrompt(loaded.text, vars),
+  };
   const promptLog = promptsToLogSnapshot({ dishEnhancement: dishPrompt });
 
   if (provider === "openai") {

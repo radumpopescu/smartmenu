@@ -1,26 +1,35 @@
-BACKGROUND REMOVAL ONLY — edit this existing photograph, do NOT generate a new image.
+Cut the dish out of the attached photo and return it on a fully transparent background.
 
-You are performing a photo cutout/masking task on the attached dish photo. The food must look like the SAME photograph with the backdrop erased — not a re-render, not a re-plate, not a stylized remake.
+This is a MASKING job on an existing photograph — not an image-generation job. You are erasing a background, not drawing food. Every pixel of the dish must survive unchanged. If you find yourself redrawing the food, stop: the correct output looks like the original photo with the backdrop deleted.
 
-ABSOLUTE RULES — do not break these:
-- Copy the dish exactly: same shapes, sizes, colors, textures, imperfections, and arrangement.
-- Same bowl/plate: identical color, glaze, rim, angle, and reflections.
-- Same food geometry: if eggs are irregular, broken, or flat in the original, keep them that way. Do NOT make eggs rounder, puffier, taller, or more symmetrical.
-- Same garnishes and portions: do NOT add, remove, move, or duplicate any ingredient.
-- Do NOT add extra sauce, oil pools, spice dust, steam, crumbs, or props.
-- Do NOT apply beauty filters, studio relighting, HDR, gloss, plastic smoothing, or "AI food photography" styling.
-- Do NOT change the camera angle, crop, zoom, or perspective.
+THE DISH: {{name}}
+{{description}}
+Use that only to understand what you are looking at, so you do not mistake an ingredient for background. Do not add anything it mentions that is not visible in the photo, and do not remove anything visible that it fails to mention.
 
-Your ONLY allowed edits:
-1. Delete the background → fully transparent alpha (PNG).
-2. Keep the dish, bowl/plate, utensils, and all food pixels intact.
-3. Clean cutout edges: no white halos, gray fringing, or leftover backdrop.
-4. Optional: a very subtle, semi-transparent contact shadow directly under the bowl/plate only.
+WHAT TO DO
+1. Keep the plate or bowl and everything sitting on it.
+2. Erase everything else: table, tablecloth, background, napkins, menus, props, hands, other plates, cutlery that is not resting on the dish, and any text or watermark.
+3. Make the erased area genuinely transparent — a real alpha channel. Not white. Not grey. Not a light-and-dark checkerboard pattern painted into the pixels.
+4. Centre the result on a square canvas with a small transparent margin on every side. Adding transparent padding is fine. Cropping into the food or the rim of the plate is not.
 
-Forbidden outputs:
-- Regenerated food that looks "prettier" but different from the source
-- Oversaturated colors, waxy textures, or fake shine on eggs/sauce
-- Crowded or rearranged composition
-- Any change to what the dish actually looks like in the original photo
+WHAT MUST NOT CHANGE
+- The food: identical shapes, sizes, colours, textures, char marks, drips, crumbs and blemishes, in the identical arrangement.
+- The plate or bowl: same colour, glaze, pattern, rim and thickness.
+- Irregularity: if an egg is broken, a leaf is wilted, or a portion sits off-centre, it stays that way. Do not tidy, straighten, round, plump, or centre anything.
+- Portions and garnishes: add nothing, remove nothing, move nothing, duplicate nothing.
+- Camera: same angle, same perspective, same apparent distance.
+- Lighting: same exposure and white balance. No relighting, no HDR, no studio glow.
 
-Output: PNG with transparent background. The result should be indistinguishable from the original photo except the background is gone.
+DO NOT
+- Apply beauty filters, gloss, sheen, plastic smoothing, sharpening, or saturation boosts.
+- Add steam, oil pools, sauce drizzle, herb scatter, spice dust, or seasoning that is not already in the photo.
+- Produce a cleaner, prettier, more symmetrical version of the dish. A faithful cutout of a slightly messy real plate is the goal; an appetising dish that is no longer *this* dish is a failure.
+
+EDGES
+Cut tight and clean. No white or grey halo, no leftover background fringe, no soft glow bleeding outward. Preserve fine detail at the boundary — sprigs of herb, sesame seeds, wisps of cheese, the outer edge of a leaf. Where the dish is genuinely soft or out of focus, keep that softness rather than cutting a hard line through it.
+
+NO SHADOW
+Do not add a drop shadow, contact shadow, reflection, or any dark patch beneath the plate. The menu layout adds its own shadow in CSS, which follows the transparency; a shadow baked into the image would double up and show as a grey smear. Shadows *within* the photo — a garnish shadowing the plate, for instance — stay as they are.
+
+OUTPUT
+One PNG with a transparent background, at the highest resolution you can produce. No border, no frame, no caption, no background colour.

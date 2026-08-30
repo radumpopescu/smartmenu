@@ -3,6 +3,7 @@ import type { Actor } from "@/server/actor";
 import { AppError, ErrorCode } from "@/server/errors";
 import { ProductService } from "@/server/services/product-service";
 import { enhanceDishImage, type ImageProvider } from "@/lib/image-enhance";
+import { dishPromptVars } from "@/shared/prompt-template";
 import type { ProductDTO } from "@/server/dto";
 
 export class ImageEnhanceService {
@@ -33,10 +34,11 @@ export class ImageEnhanceService {
       itemId,
       sourceImageId
     );
+    const item = await this.products.get(actor, storeId, itemId);
 
     let buffer: Buffer;
     try {
-      buffer = await enhanceDishImage(sourceUrl, provider);
+      buffer = await enhanceDishImage(sourceUrl, provider, dishPromptVars(item));
     } catch (e) {
       const message = e instanceof Error ? e.message : "Enhancement failed";
       throw new AppError(ErrorCode.UPSTREAM_FAILED, message);

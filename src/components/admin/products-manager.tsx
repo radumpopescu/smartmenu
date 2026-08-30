@@ -315,7 +315,6 @@ export function ProductsManager({
           categories={categories}
           currency={currency}
           apiMode={apiMode}
-          copied={copied}
           enhancing={enhancingId === editingItem.id}
           uploadingEnhanced={uploadingEnhancedId === editingItem.id}
           saving={savingId === editingItem.id}
@@ -331,7 +330,7 @@ export function ProductsManager({
             enhance(editingItem.id, sourceImageId)
           }
           onDelete={() => remove(editingItem.id)}
-          onCopyPrompt={copyPrompt}
+          dishEnhancementPrompt={dishEnhancementPrompt}
         />
       )}
     </div>
