@@ -17,12 +17,29 @@
  * (matting) model, which computes an alpha mask and cannot redraw at all.
  */
 
+/**
+ * Image model.
+ *
+ * gpt-image-2 by a wide margin. Measured on the same dish, quality=low:
+ *   gpt-image-1  $0.0179  redrew the food — poached eggs became smooth
+ *                         blobs, the rocket-and-sesame salad a green mass
+ *   gpt-image-2  $0.0214  preserved it — salmon texture, paprika on the
+ *                         egg, individual leaves with sesame and pumpkin
+ *                         seeds, the balsamic drizzle pattern intact
+ *
+ * Roughly 20% more for output that is actually usable. Note gpt-image-2
+ * rejects `input_fidelity`, so that parameter is only sent to gpt-image-1.
+ */
+export const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-2";
+
 export const IMAGE_SIZE = process.env.OPENAI_IMAGE_SIZE ?? "1024x1024";
 
 /** "low" | "medium" | "high" | "auto" */
 export const IMAGE_QUALITY = process.env.OPENAI_IMAGE_QUALITY ?? "low";
 
 /**
+ * gpt-image-1 only — gpt-image-2 returns 400 for this parameter.
+ *
  * How faithfully the edit must preserve the *input* image.
  *
  * Measured on a real dish (Oua Benedict, 1554x1460 JPEG), quality=low:

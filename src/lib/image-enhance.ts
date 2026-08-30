@@ -9,6 +9,7 @@ import fs from "fs/promises";
 import path from "path";
 import sharp from "sharp";
 import {
+  IMAGE_MODEL,
   IMAGE_QUALITY,
   IMAGE_SIZE,
   INPUT_FIDELITY,
@@ -113,7 +114,7 @@ async function enhanceWithOpenAI(
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
 
-  const model = "gpt-image-1";
+  const model = IMAGE_MODEL;
   const startedAt = Date.now();
 
   const upload = await shrinkForUpload(imageBuffer, mime);
@@ -123,7 +124,7 @@ async function enhanceWithOpenAI(
     model,
     size: IMAGE_SIZE,
     quality: IMAGE_QUALITY,
-    inputFidelity: INPUT_FIDELITY,
+    inputFidelity: model.startsWith("gpt-image-1") ? INPUT_FIDELITY : null,
     background: "transparent",
     sourceImage: imageUrl,
     originalBytes: imageBuffer.length,
@@ -148,7 +149,14 @@ async function enhanceWithOpenAI(
    */
   form.append("background", "transparent");
   form.append("output_format", "png");
-  form.append("input_fidelity", INPUT_FIDELITY);
+  /*
+   * input_fidelity is a gpt-image-1 parameter. gpt-image-2 rejects it
+   * outright ("does not support the 'input_fidelity' parameter", 400), so
+   * only send it to the model family that understands it.
+   */
+  if (model.startsWith("gpt-image-1")) {
+    form.append("input_fidelity", INPUT_FIDELITY);
+  }
 
   try {
     const response = await fetch("https://api.openai.com/v1/images/edits", {
@@ -236,7 +244,7 @@ async function enhanceWithOpenAI(
         ...(costUsd !== undefined
           ? {
               costUsd,
-              costNote: `gpt-image-1 edit, quality=${IMAGE_QUALITY}, size=${IMAGE_SIZE}, input_fidelity=${INPUT_FIDELITY}, from reported usage`,
+              costNote: `${model} edit, quality=${IMAGE_QUALITY}, size=${IMAGE_SIZE}${model.startsWith("gpt-image-1") ? `, input_fidelity=${INPUT_FIDELITY}` : ""}, from reported usage`,
             }
           : {
               costUsd: 0,
