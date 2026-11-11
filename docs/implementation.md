@@ -39,6 +39,6 @@ The initial application lives in this repository and is configured for Cloudflar
 
 ## Remaining work
 
-- Cloudflare deployment is pending. The local Wrangler login had expired during the implementation pass. Provision D1, R2, and the queue, configure the production secrets, and deploy under the intended guest hostname before printing QR codes.
+- The app is deployed at https://smartmenu.radu.workers.dev with its D1 database, R2 bucket and queue. No secrets are set yet, so signup is closed and the assistant, menu import and photo edits return an error until `SIGNUP_CODE`, `XAI_API_KEY` and `OPENAI_API_KEY` are added with `wrangler secret put`. `PUBLIC_ORIGIN` is empty, so QR codes use the `workers.dev` hostname; set it before printing codes if the menu will live on its own domain.
 - Run a real menu import, real assistant requests on a full menu, and compare the photo looks with both image providers using restaurant-approved images. Check that the chosen model ids are still current before deploying. The current editor flags uncertain entries. A side-by-side source-page review and optional AI copy suggestions were discussed but are outside this version.
 - Staff invitations, password recovery, billing, and photo storage cleanup are future work. The Cloudflare architecture gives the app a path to scale. Production capacity and costs have yet to be measured.

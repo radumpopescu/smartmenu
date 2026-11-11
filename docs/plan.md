@@ -9,7 +9,7 @@ Workstreams A, B and C are built. `npm run check` passes and the four demo menus
 Not yet verified:
 
 - Menu import and AI photo edits, including cut-outs on a real page. They need an OpenAI key.
-- A deployment to Cloudflare and edge caching at a real edge.
+- Edge caching behaviour on the deployed site.
 - Safari and a physical phone. Everything was checked in Chromium at 375 px and 768 px.
 - The demo photos are stock images from Unsplash. Replace them with real dishes from a pilot restaurant when one is available.
 - Interface words on the guest page ("Menu", "Not available today", the tag names) are English even on a Romanian menu.

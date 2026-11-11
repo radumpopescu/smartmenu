@@ -10,7 +10,7 @@ Not yet verified:
 
 - Any call to the real xAI or OpenAI APIs. Assistant quality, menu reading with Grok, and every photo look need the owner's keys and real dish photos.
 - Voice input. The code uses the browser's speech recognition and was not exercised.
-- Deployment to Cloudflare. The Wrangler login on this machine has expired.
+- The deployed app beyond a smoke test of its public pages. No account exists in production yet.
 
 ## The ideas this phase rests on
 
@@ -102,7 +102,7 @@ This document, `ops.js`, the photo prompts, and the review of the studio in the 
 
 ## Deployment
 
-The app deploys with the commands in the [README](../README.md). It needs a Cloudflare login on this machine, and the secrets (`SIGNUP_CODE`, `XAI_API_KEY`, `OPENAI_API_KEY`) are set by the owner, not committed.
+The app is deployed at https://smartmenu.radu.workers.dev with its D1 database, R2 bucket and queue. It redeploys with `npm run deploy`, and the secrets (`SIGNUP_CODE`, `XAI_API_KEY`, `OPENAI_API_KEY`) are set by the owner, not committed.
 
 ## Not in this phase
 
