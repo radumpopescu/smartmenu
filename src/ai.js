@@ -49,12 +49,12 @@ export async function extractMenu(env, file) {
   if (response.status !== 'completed' || !output) throw new RequestError(422, 'This page could not be read. Try a sharper photo.');
   const { sections } = JSON.parse(output);
   return sections.filter((section) => section.items.length).map((section) => ({
-    id: uid(), name: section.name.trim().slice(0, 80) || 'Menu',
+    id: uid(), name: section.name.trim().slice(0, 80) || 'Menu', note: '',
     items: section.items.filter((dish) => dish.name.trim()).map((dish) => {
       const price = dish.price === null ? null : Math.round(dish.price * 100);
       return {
         id: uid(), name: dish.name.trim().slice(0, 120), description: dish.description.slice(0, 500),
-        price: price >= 0 && price <= 9999999 ? price : null, allergens: '', calories: null,
+        price: price >= 0 && price <= 9999999 ? price : null, allergens: '', calories: null, portion: '', tags: [],
         photo: null, available: true, featured: false, review: dish.review || price === null
       };
     })

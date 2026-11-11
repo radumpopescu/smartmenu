@@ -1,0 +1,62 @@
+.t-notte { --display: "Marcellus", Georgia, serif; --body: "Manrope", system-ui, sans-serif; --max: 920px; font-size: 15px; }
+
+.t-notte .sm-hero { padding: 96px var(--pad) 72px; text-align: center; background: radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 72%); }
+.t-notte .sm-kicker { color: var(--accent); font-size: 10px; font-weight: 500; letter-spacing: .5em; text-indent: .5em; }
+.t-notte .sm-hero h1 { margin-top: 22px; font-size: clamp(44px, 13vw, 96px); line-height: 1; letter-spacing: .14em; text-indent: .14em; text-transform: uppercase; }
+.t-notte .sm-sub { margin: 20px auto 0; color: var(--muted); font-size: 14px; letter-spacing: .04em; }
+.t-notte .sm-hero-copy::after { content: ""; display: block; width: 1px; height: 44px; margin: 30px auto 0; background: linear-gradient(var(--accent), transparent); }
+
+.t-notte .sm-hero.has-photo { display: flex; align-items: flex-end; min-height: min(82svh, 700px); padding-bottom: 28px; background: none; color: #f4eee2; }
+.t-notte .sm-hero.has-photo .sm-hero-copy { width: 100%; }
+.t-notte .sm-hero-photo { position: absolute; inset: 0; z-index: -1; }
+.t-notte .sm-hero-photo img { filter: saturate(.85) brightness(.82); }
+.t-notte .sm-hero-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(8 8 9 / .35), rgb(8 8 9 / .2) 35%, var(--bg) 96%); }
+.t-notte:not(.is-dark) .sm-hero-photo::after { background: linear-gradient(180deg, rgb(8 8 9 / .3), rgb(8 8 9 / .72)); }
+.t-notte .sm-hero.has-photo .sm-sub { color: inherit; opacity: .8; }
+
+.t-notte .sm-nav-track { gap: 28px; }
+.t-notte .sm-nav-track::before, .t-notte .sm-nav-track::after { content: ""; flex: 1; }
+.t-notte .sm-nav a { padding: 17px 0 15px; border-bottom-width: 1px; font-size: 10.5px; font-weight: 500; letter-spacing: .24em; text-transform: uppercase; }
+.t-notte .sm-filters { justify-content: safe center; }
+.t-notte .sm-filter { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; }
+.t-notte .sm-filter[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+.t-notte .sm-section { padding-top: 68px; }
+.t-notte .sm-section-head { margin-bottom: 30px; text-align: center; }
+.t-notte .sm-section h2 { color: var(--accent); font-size: clamp(22px, 6vw, 30px); line-height: 1.2; letter-spacing: .26em; text-indent: .26em; text-transform: uppercase; }
+.t-notte .sm-section h2::after { content: ""; display: block; width: 36px; height: 1px; margin: 18px auto 0; background: var(--accent); opacity: .6; }
+.t-notte .sm-note { margin-top: 14px; font-size: 13px; letter-spacing: .03em; }
+
+/* Every dish is a quiet centred stack */
+.t-notte .sm-items { display: grid; gap: 30px; }
+.t-notte .sm-dish { display: block; padding: 0; border: 0; text-align: center; }
+.t-notte .sm-line { display: block; }
+.t-notte .sm-line h3 { font: 400 19px/1.25 var(--display); letter-spacing: .1em; text-transform: uppercase; }
+.t-notte .sm-price { display: block; margin-top: 8px; color: var(--accent); font-size: 13.5px; letter-spacing: .08em; }
+.t-notte .sm-desc { max-width: 36ch; margin: 7px auto 0; font-size: 14px; line-height: 1.55; }
+.t-notte .sm-tags { justify-content: center; margin-top: 10px; }
+.t-notte .sm-tag { font-size: 9.5px; font-weight: 500; letter-spacing: .18em; }
+.t-notte .sm-off { color: var(--accent); font-weight: 500; letter-spacing: .18em; }
+
+.t-notte .sm-dish .sm-photo { width: min(100%, 420px); aspect-ratio: 3 / 2; margin: 0 auto 18px; border-radius: 3px; box-shadow: 0 0 0 1px var(--line); }
+.t-notte .sm-dish.is-cutout .sm-photo { aspect-ratio: 1; width: min(70%, 260px); box-shadow: none; background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 22%, transparent), transparent); }
+
+.t-notte .sm-dish.is-featured { padding: 30px 22px; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); }
+.t-notte .sm-dish.is-featured h3 { font-size: 23px; }
+.t-notte .sm-dish.is-featured.has-photo { padding: 0 0 30px; }
+.t-notte .sm-dish.is-featured.has-photo .sm-photo { width: 100%; box-shadow: none; border-radius: 0; margin-bottom: 26px; }
+.t-notte .sm-dish.is-featured.has-photo .sm-copy { padding-inline: 22px; }
+
+.t-notte .sm-footer { padding-top: 56px; }
+.t-notte .sm-footer-name { font-size: 20px; letter-spacing: .3em; text-indent: .3em; text-transform: uppercase; }
+.t-notte .sm-sheet .sm-copy { text-align: center; }
+.t-notte .sm-sheet .sm-line h3 { font-size: 24px; letter-spacing: .1em; }
+.t-notte .sm-sheet .sm-desc { max-width: none; }
+
+@media (min-width: 720px) {
+  .t-notte .sm-items { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 44px 56px; }
+  .t-notte .sm-dish.is-featured { align-self: stretch; display: grid; align-content: center; }
+  .t-notte .sm-dish.is-featured.has-photo { grid-column: 1 / -1; grid-template-columns: 1.2fr 1fr; align-items: center; padding: 0; }
+  .t-notte .sm-dish.is-featured.has-photo .sm-photo { margin: 0; order: 0; }
+  .t-notte .sm-dish.is-featured.has-photo .sm-copy { padding: 30px; }
+}

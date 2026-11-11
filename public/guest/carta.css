@@ -1,0 +1,66 @@
+.t-carta { --display: "Cormorant Garamond", Georgia, serif; --body: "EB Garamond", Georgia, serif; --max: 880px; font-size: 17.5px; line-height: 1.45; }
+
+/* A framed title page */
+.t-carta .sm-hero { margin: 14px; padding: 64px 22px 58px; border: 1px solid var(--accent); outline: 1px solid var(--accent); outline-offset: -6px; text-align: center; }
+.t-carta .sm-kicker { color: var(--accent); font: 500 12px/1 var(--body); letter-spacing: .42em; text-indent: .42em; }
+.t-carta .sm-hero h1 { margin-top: 20px; font-size: clamp(52px, 15vw, 104px); font-weight: 600; line-height: .92; letter-spacing: -.01em; }
+.t-carta .sm-sub { margin: 18px auto 0; max-width: 34ch; color: var(--muted); font-size: 19px; font-style: italic; line-height: 1.35; }
+.t-carta .sm-hero-copy::after, .t-carta .sm-footer::before {
+  content: ""; display: block; width: 132px; height: 9px; margin: 28px auto 0;
+  background:
+    radial-gradient(circle, var(--accent) 2.5px, transparent 3.2px) center / 9px 9px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) left center / 52px 1px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) right center / 52px 1px no-repeat;
+}
+
+.t-carta .sm-nav { border-bottom: 0; }
+.t-carta .sm-nav-track { gap: 26px; }
+.t-carta .sm-nav-track::before, .t-carta .sm-nav-track::after { content: ""; flex: 1; }
+.t-carta .sm-nav a { padding: 16px 0 12px; font: 500 12.5px/1.2 var(--body); letter-spacing: .2em; text-transform: uppercase; border-bottom-width: 1px; }
+.t-carta .sm-filters { justify-content: safe center; }
+.t-carta .sm-filter { font: 400 15px/1.2 var(--body); font-style: italic; }
+
+.t-carta .sm-section { padding-top: 52px; }
+.t-carta .sm-section-head { margin-bottom: 20px; text-align: center; }
+.t-carta .sm-section h2 { display: flex; align-items: center; gap: 18px; font-size: clamp(36px, 9vw, 52px); font-style: italic; font-weight: 500; line-height: 1; }
+.t-carta .sm-section h2::before, .t-carta .sm-section h2::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.t-carta .sm-note { margin-top: 10px; font-size: 16.5px; font-style: italic; }
+
+.t-carta .sm-dish { padding: 11px 0; border-top: 0; align-items: center; }
+.t-carta .sm-line { gap: 8px; }
+.t-carta .sm-line h3 { flex: 0 1 auto; font: 600 21.5px/1.15 var(--display); letter-spacing: .005em; }
+.t-carta .sm-dots { display: block; flex: 1; min-width: 18px; border-bottom: 1.5px dotted color-mix(in srgb, var(--text) 38%, transparent); transform: translateY(-5px); }
+.t-carta .sm-price { font: 500 18px/1 var(--body); font-variant-numeric: lining-nums tabular-nums; }
+.t-carta .sm-desc { max-width: 44ch; margin-top: 3px; font-size: 16.5px; font-style: italic; line-height: 1.35; }
+.t-carta .sm-tag { font: 500 10.5px/1 var(--body); letter-spacing: .16em; }
+.t-carta .sm-facts { font-size: 14px; }
+.t-carta .sm-off { font: 500 11px/1 var(--body); letter-spacing: .16em; color: var(--accent); }
+
+/* Photos are vignettes, never the layout */
+.t-carta .sm-dish .sm-photo { width: 70px; border-radius: 50%; box-shadow: 0 0 0 1px var(--bg), 0 0 0 2px var(--accent); }
+.t-carta .sm-dish.is-cutout .sm-photo { box-shadow: none; }
+
+.t-carta .sm-dish.is-featured h3 { color: var(--accent); }
+.t-carta .sm-dish.is-featured h3::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 9px; background: var(--accent); transform: rotate(45deg) translateY(-3px); }
+.t-carta .sm-dish.is-featured.has-photo { display: block; padding: 6px 0 16px; text-align: center; }
+.t-carta .sm-dish.is-featured.has-photo .sm-photo { width: min(62%, 280px); aspect-ratio: 4 / 5; margin: 0 auto 16px; border-radius: 999px 999px 0 0; }
+.t-carta .sm-dish.is-featured.has-photo .sm-line { justify-content: center; flex-wrap: wrap; }
+.t-carta .sm-dish.is-featured.has-photo .sm-dots { display: none; }
+.t-carta .sm-dish.is-featured.has-photo .sm-line h3 { flex-basis: 100%; font-size: 28px; }
+.t-carta .sm-dish.is-featured.has-photo .sm-desc { margin-inline: auto; }
+.t-carta .sm-dish.is-featured.has-photo .sm-tags { justify-content: center; }
+
+.t-carta .sm-footer { border-top: 0; padding-top: 12px; }
+.t-carta .sm-footer::before { margin: 0 auto 30px; }
+.t-carta .sm-footer-name { font-size: 15px; font-family: var(--body); letter-spacing: .32em; text-transform: uppercase; }
+.t-carta .sm-footer-note { font-size: 15px; font-style: italic; }
+.t-carta .sm-sheet .sm-line h3 { font-weight: 600; font-size: 32px; }
+.t-carta .sm-sheet .sm-dots { display: none; }
+.t-carta .sm-sheet .sm-line h3 { flex: 1; }
+.t-carta .sm-sheet .sm-desc { max-width: none; font-size: 18px; }
+
+@media (min-width: 720px) {
+  .t-carta .sm-hero { margin: 24px; padding: 96px 40px 88px; }
+  .t-carta .sm-items { column-gap: 64px; }
+  .t-carta .sm-dish.is-featured.has-photo { grid-column: 1 / -1; }
+}

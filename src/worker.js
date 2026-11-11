@@ -1,6 +1,13 @@
 import qrcode from 'qrcode-generator';
-import { RequestError, cleanDraft, draftPhotosIn, isId, makeDraft, photosIn, publishedMenu, uid } from './menu.js';
+import { RequestError, cleanDraft, draftPhotosIn, isId, makeDraft, photoMap, photosIn, publishedMenu, storedPublished, uid } from './menu.js';
 import { editPhoto, extractMenu } from './ai.js';
+import { designOf, escape, renderDocument } from '../public/guest/render.js';
+import { samples } from '../public/guest/samples.js';
+import baseCss from '../public/guest/base.css';
+import osteria from '../public/guest/osteria.css';
+import carta from '../public/guest/carta.css';
+import mercato from '../public/guest/mercato.css';
+import notte from '../public/guest/notte.css';
 
 const days = 14 * 86400;
 const maxImage = 6 * 1024 * 1024;
@@ -14,6 +21,18 @@ const json = (data, status = 200, headers = {}) =>
   Response.json(data, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
 const fail = (status, message) => { throw new RequestError(status, message); };
 const query = (env, sql, ...params) => env.DB.prepare(sql).bind(...params);
+const templateCss = { osteria, carta, mercato, notte };
+const sampleAliases = new Map([['osteria-verde-example', 'demo-osteria']]);
+const publicCache = 'public, max-age=30, s-maxage=60';
+const originOf = (env, url) => env.PUBLIC_ORIGIN ? new URL(env.PUBLIC_ORIGIN).origin : url.origin;
+const dimension = (value) => /^\d{1,9}$/.test(value ?? '') ? Math.min(10000, Math.max(1, Number(value))) : null;
+const pageHeaders = {
+  'Content-Type': 'text/html; charset=utf-8',
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'unsafe-inline' https://fonts.googleapis.com; " +
+    "font-src https://fonts.gstatic.com; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+};
 
 async function passwordHash(password, salt) {
   const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
@@ -118,10 +137,12 @@ async function auth(request, env, action) {
   return json({ signedIn: true }, 200, { 'Set-Cookie': cookie(request, token, days) });
 }
 
-async function savePhoto(env, menuId, data, mime, id = uid()) {
+async function savePhoto(env, menuId, data, mime, { width = null, height = null, cutout = false } = {}) {
+  const id = uid();
   await env.PHOTOS.put(id, data, { httpMetadata: { contentType: mime } });
   try {
-    await query(env, 'INSERT INTO photos (id, menu_id, mime) VALUES (?, ?, ?)', id, menuId, mime).run();
+    await query(env, 'INSERT INTO photos (id, menu_id, mime, width, height, cutout) VALUES (?, ?, ?, ?, ?, ?)',
+      id, menuId, mime, width && height ? width : null, width && height ? height : null, cutout ? 1 : 0).run();
   } catch (error) {
     await env.PHOTOS.delete(id).catch((cleanupError) => console.error('Photo cleanup failed', cleanupError));
     throw error;
@@ -136,16 +157,24 @@ async function useQuota(env, account, feature, cap) {
   if (!result.meta.changes) fail(429, 'Your daily limit has been reached.');
 }
 
-function view(row) {
-  return { id: row.id, slug: row.slug, draft: JSON.parse(row.draft), version: row.version, publishedAt: row.published_at };
+async function photoRows(env, menuId, ids) {
+  const { results } = await query(env, `SELECT id, width, height, cutout FROM photos
+    WHERE menu_id = ? AND id IN (SELECT value FROM json_each(?))`, menuId, JSON.stringify(ids)).all();
+  return results;
+}
+
+async function view(env, row) {
+  const draft = cleanDraft(JSON.parse(row.draft));
+  draft.photos = photoMap(await photoRows(env, row.id, draftPhotosIn(draft)));
+  return { id: row.id, slug: row.slug, draft, version: row.version, publishedAt: row.published_at };
 }
 
 async function privateMenu(request, env, account, menu, action, detail) {
   const method = request.method;
-  if (!action && method === 'GET') return json(view(menu));
+  if (!action && method === 'GET') return json(await view(env, menu));
   if (action === 'qr' && method === 'GET' && menu.published) {
     const qr = qrcode(0, 'M');
-    qr.addData(new URL('/m/' + menu.slug, request.url).href);
+    qr.addData(new URL('/m/' + menu.slug, originOf(env, new URL(request.url))).href);
     qr.make();
     return new Response(qr.createSvgTag({ cellSize: 5, margin: 20, scalable: true }), {
       headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'private, no-store' }
@@ -157,10 +186,9 @@ async function privateMenu(request, env, account, menu, action, detail) {
     const input = await body(request);
     const draft = cleanDraft(input.draft);
     const encoded = JSON.stringify(draft);
-    const ids = JSON.stringify(draftPhotosIn(draft));
-    const { count } = await query(env, `SELECT count(*) AS count FROM photos
-      WHERE menu_id = ? AND id IN (SELECT value FROM json_each(?))`, menu.id, ids).first();
-    if (count !== JSON.parse(ids).length) fail(400, 'A photo does not belong to this menu.');
+    const ids = draftPhotosIn(draft);
+    const rows = await photoRows(env, menu.id, ids);
+    if (rows.length !== ids.length) fail(400, 'A photo does not belong to this menu.');
     const publishing = action === 'publish';
     if (publishing && !draft.sections.some((section) => section.items.length)) fail(400, 'Add a dish before publishing.');
     if (publishing && draft.sections.some((section) => section.items.some((item) => item.review))) {
@@ -168,20 +196,22 @@ async function privateMenu(request, env, account, menu, action, detail) {
     }
     const statements = publishing ? [
       query(env, `UPDATE menus SET draft = ?, published = ?, published_at = ?, version = version + 1
-        WHERE id = ? AND version = ?`, encoded, JSON.stringify(publishedMenu(draft)), now(), menu.id, input.version ?? 0),
+        WHERE id = ? AND version = ?`, encoded, JSON.stringify(publishedMenu(draft, photoMap(rows))), now(), menu.id, input.version ?? 0),
       query(env, `UPDATE photos SET published = (id IN (SELECT value FROM json_each(?)))
         WHERE menu_id = ? AND changes() = 1`, JSON.stringify(photosIn(draft)), menu.id)
     ] : [query(env, 'UPDATE menus SET draft = ?, version = version + 1 WHERE id = ? AND version = ?',
       encoded, menu.id, input.version ?? 0)];
     const [result] = await env.DB.batch(statements);
     if (!result.meta.changes) fail(409, 'This menu changed in another tab. Reopen it before saving.');
-    return json(view(await query(env, 'SELECT * FROM menus WHERE id = ?', menu.id).first()));
+    return json(await view(env, await query(env, 'SELECT * FROM menus WHERE id = ?', menu.id).first()));
   }
 
   if (action === 'photos' && method === 'POST') {
     const file = await imageFile(request);
     await useQuota(env, account, 'upload', 150);
-    return json({ id: await savePhoto(env, menu.id, file.stream(), file.type) }, 201);
+    const params = new URL(request.url).searchParams;
+    const size = { width: dimension(params.get('w')), height: dimension(params.get('h')) };
+    return json({ id: await savePhoto(env, menu.id, file.stream(), file.type, size) }, 201);
   }
   if (action === 'import' && method === 'POST') {
     if (!env.OPENAI_API_KEY) fail(503, 'Menu import needs an OpenAI API key on the server.');
@@ -233,7 +263,7 @@ async function api(request, env, url) {
   if (resource === 'public' && method === 'GET') {
     const row = await query(env, 'SELECT published FROM menus WHERE slug = ? AND published IS NOT NULL', id ?? '').first();
     if (!row) fail(404, 'This menu is unavailable.');
-    return json(JSON.parse(row.published), 200, { 'Cache-Control': 'public, max-age=30, s-maxage=60' });
+    return json(storedPublished(row.published), 200, { 'Cache-Control': publicCache });
   }
   if (resource === 'photo' && method === 'GET') {
     const photo = await query(env, `SELECT photos.*, menus.owner_id FROM photos
@@ -263,7 +293,7 @@ async function api(request, env, url) {
     const slug = (label || 'menu') + '-' + menuId.slice(0, 12);
     await query(env, 'INSERT INTO menus (id, owner_id, slug, draft) VALUES (?, ?, ?, ?)',
       menuId, account.id, slug, JSON.stringify(makeDraft(name.trim()))).run();
-    return json(view(await query(env, 'SELECT * FROM menus WHERE id = ?', menuId).first()), 201);
+    return json(await view(env, await query(env, 'SELECT * FROM menus WHERE id = ?', menuId).first()), 201);
   }
   if (resource === 'menus' && isId(id)) {
     const menu = await query(env, 'SELECT * FROM menus WHERE id = ? AND owner_id = ?', id, account.id).first();
@@ -273,33 +303,71 @@ async function api(request, env, url) {
   fail(404, 'Page not found.');
 }
 
+const page = (html, status, cache) => new Response(html, { status, headers: { ...pageHeaders, 'Cache-Control': cache } });
+
+const notice = (title, text) => `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>${escape(title)}</title>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:#fbf7ed;color:#2d2b22;font:16px/1.5 system-ui,sans-serif;text-align:center}h1{font:400 2rem/1.2 Georgia,serif;margin:0 0 8px}p{margin:0;max-width:32em;color:#5d594b}</style>
+</head>
+<body><main><h1>${escape(title)}</h1><p>${escape(text)}</p></main></body>
+</html>`;
+
+async function guestPage(env, url, slug) {
+  const key = sampleAliases.get(slug) ?? slug;
+  let menu = Object.hasOwn(samples, key) ? samples[key] : null;
+  if (!menu && slug) {
+    const row = await query(env, 'SELECT published FROM menus WHERE slug = ? AND published IS NOT NULL', slug).first();
+    menu = row && storedPublished(row.published);
+  }
+  if (!menu) {
+    return page(notice('Menu not found', 'This menu is not available. Check the link, or ask the staff for the current QR code.'), 404, 'no-store');
+  }
+  const canonical = new URL('/m/' + key, originOf(env, url)).href;
+  return page(renderDocument(menu, { css: baseCss + templateCss[designOf(menu).template], canonical }), 200, publicCache);
+}
+
+async function edgeCached(request, url, ctx, produce) {
+  if (request.headers.has('Authorization') || /no-cache|no-store/i.test(request.headers.get('Cache-Control') ?? '')) return produce();
+  const key = new URL(url.pathname, url.origin);
+  const cached = await caches.default.match(key);
+  if (cached) return cached;
+  const response = await produce();
+  if (response.ok && response.headers.get('Cache-Control')?.startsWith('public,')) {
+    ctx.waitUntil(caches.default.put(key, response.clone()).catch((error) => console.error('Edge cache write failed', error)));
+  }
+  return response;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname.startsWith('/api/')) {
       try {
-        const cacheable = request.method === 'GET' &&
-          /^\/api\/(?:public|photo)\/[a-z0-9-]+$/.test(url.pathname) &&
-          !request.headers.has('Authorization') &&
-          !/no-cache|no-store/i.test(request.headers.get('Cache-Control') ?? '');
-        if (!cacheable) return await api(request, env, url);
-        const key = new URL(url.pathname, url.origin);
-        const cached = await caches.default.match(key);
-        if (cached) return cached;
-        const response = await api(request, env, url);
-        if (response.ok && response.headers.get('Cache-Control')?.startsWith('public,')) {
-          ctx.waitUntil(caches.default.put(key, response.clone()).catch((error) => console.error('Edge cache write failed', error)));
+        if (request.method === 'GET' && /^\/api\/(?:public|photo)\/[a-z0-9-]+$/.test(url.pathname)) {
+          return await edgeCached(request, url, ctx, () => api(request, env, url));
         }
-        return response;
+        return await api(request, env, url);
       } catch (error) {
         if (error instanceof RequestError) return json({ error: error.message }, error.status);
         console.error(error);
         return json({ error: 'Something went wrong. Try again.' }, 500);
       }
     }
-    if (request.method === 'GET' && /^\/(?:m\/[a-z0-9-]+|studio)\/?$/.test(url.pathname)) {
-      return env.ASSETS.fetch(new URL('/', url));
+    if (['GET', 'HEAD'].includes(request.method) && url.pathname.startsWith('/m/')) {
+      const slug = url.pathname.match(/^\/m\/([a-z0-9-]+)\/?$/)?.[1];
+      try {
+        return await edgeCached(request, url, ctx, () => guestPage(env, url, slug));
+      } catch (error) {
+        console.error(error);
+        return page(notice('Something went wrong', 'The menu could not be loaded. Try again in a moment.'), 500, 'no-store');
+      }
     }
+    if (request.method === 'GET' && /^\/studio\/?$/.test(url.pathname)) return env.ASSETS.fetch(new URL('/', url));
     return env.ASSETS.fetch(request);
   },
   async queue(batch, env) {
@@ -319,7 +387,8 @@ export default {
         const source = await env.PHOTOS.get(job.source_id);
         if (!source) throw new Error('Original image is missing');
         const data = await editPhoto(env, source, source.httpMetadata.contentType, job.background);
-        const photo = await savePhoto(env, job.menu_id, data, 'image/webp');
+        const photo = await savePhoto(env, job.menu_id, data, 'image/webp',
+          { width: 1024, height: 1024, cutout: job.background === 'transparent' });
         await query(env, "UPDATE photo_jobs SET status = 'ready', result_id = ?, updated_at = ? WHERE id = ? AND updated_at = ?",
           photo, now(), job.id, lease).run();
         message.ack();

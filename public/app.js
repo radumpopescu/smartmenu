@@ -1,4 +1,4 @@
-import { escape as e, fonts, layouts, menuHTML, palettes, photoURL, sample } from './menu-view.js';
+import { TAGS, TAG_LABELS, designOf, escape as e, photoURL, templates } from '/guest/render.js';
 
 const app = document.querySelector('#app');
 const dialog = document.querySelector('#dialog');
@@ -11,6 +11,10 @@ let busy = false;
 let notice;
 let openDish = '';
 let editDialogVersion = 0;
+let device = 'phone';
+let samples;
+let demo = 'demo-osteria';
+let fontsLoaded = false;
 
 async function api(path, method = 'GET', data) {
   const options = { method };
@@ -52,13 +56,72 @@ function auth(mode) {
   </form>`);
 }
 
-function welcome() {
+const pressed = (value) => `aria-pressed="${value}"`;
+
+function deviceHTML(label) {
+  return `<div class="device" data-size="${device}"><div class="device-stage">
+    <div class="device-frame"><iframe id="preview-frame" src="/guest/frame" title="${label}"></iframe></div>
+  </div></div>`;
+}
+
+const deviceToggle = () => `<div class="segmented" role="group" aria-label="Preview size">${['phone', 'tablet'].map((size) =>
+  `<button data-do="device" data-value="${size}" ${pressed(size === device)}>${size === 'phone' ? 'Phone' : 'Tablet'}</button>`).join('')}</div>`;
+
+function fitDevice() {
+  const root = document.querySelector('.device');
+  if (!root) return;
+  const stage = root.querySelector('.device-stage');
+  const frame = root.querySelector('.device-frame');
+  const bezel = root.dataset.size === 'tablet' ? 10 : 7;
+  const width = (root.dataset.size === 'tablet' ? 820 : 390) + bezel * 2;
+  const scale = Math.min(1, stage.clientWidth / width);
+  const height = Math.round(Math.min(Number(root.dataset.max) || 700, Math.max(385, innerHeight * 0.73)));
+  stage.style.height = height + 'px';
+  frame.style.width = width + 'px';
+  frame.style.height = height / scale + 'px';
+  frame.style.setProperty('--scale', scale);
+}
+
+const fitter = new ResizeObserver(fitDevice);
+addEventListener('resize', fitDevice);
+
+function mountDevice() {
+  fitter.disconnect();
+  const stage = document.querySelector('.device-stage');
+  if (stage) fitter.observe(stage);
+  fitDevice();
+}
+
+function sendPreview() {
+  const frame = document.querySelector('#preview-frame');
+  const menu = state ? state.draft : samples?.[demo];
+  if (frame?.dataset.ready && menu) frame.contentWindow.postMessage({ type: 'sm-preview', menu }, location.origin);
+}
+
+addEventListener('message', (event) => {
+  const frame = document.querySelector('#preview-frame');
+  if (event.origin !== location.origin || event.source !== frame?.contentWindow || event.data?.type !== 'sm-frame-ready') return;
+  frame.dataset.ready = 'true';
+  sendPreview();
+});
+
+async function welcome() {
   app.innerHTML = top('<button class="btn" data-do="login">Sign in</button><button class="btn primary" data-do="register">Create account</button>') +
     `<main class="welcome"><div class="welcome-copy">
     <h1>A better menu<br>starts here.</h1>
     <p>Turn your paper menu into a digital menu guests can browse at the table. Bring your own photos, find a look that fits, and publish with a QR code.</p>
-    <div class="actions"><button class="btn primary" data-do="register">Create your menu</button><a class="btn" href="/m/osteria-verde-example">View example menu ↗</a></div>
-    </div><div class="showcase"><div class="phone" aria-label="Example guest menu">${menuHTML(sample, 'sample')}</div></div></main>`;
+    <div class="actions"><button class="btn primary" data-do="register">Create your menu</button><a class="btn" id="example-link" href="/m/${demo}">View example menu ↗</a></div>
+    </div><div class="showcase">
+      <div class="segmented demo-tabs" role="group" aria-label="Example menus">${Object.entries(templates).map(([key, template]) =>
+        `<button data-do="demo" data-value="demo-${key}" ${pressed(demo === 'demo-' + key)}>${template.name}</button>`).join('')}</div>
+      ${deviceHTML('Example guest menu')}
+    </div></main>`;
+  document.querySelector('.device').dataset.max = 600;
+  mountDevice();
+  try {
+    ({ samples } = await import('/guest/samples.js'));
+    sendPreview();
+  } catch (error) { console.error(error); }
 }
 
 async function dashboard() {
@@ -86,8 +149,11 @@ function dishHTML(dish) {
       ${field('item', 'name', 'Name', dish.name, 'maxlength="120"')}
       ${field('item', 'price', 'Price', cents, 'type="text" inputmode="decimal" placeholder="0.00" maxlength="9"')}
       <label class="full">Description<textarea data-item="description" rows="2" maxlength="500">${e(dish.description)}</textarea></label>
-      ${field('item', 'allergens', 'Allergens', dish.allergens, 'maxlength="200"')}
-      ${field('item', 'calories', 'Calories', dish.calories, 'type="number" min="0" max="100000"')}
+      ${field('item', 'portion', 'Portion', dish.portion, 'maxlength="40" placeholder="350 g"')}
+      ${field('item', 'calories', 'Calories', dish.calories, 'type="number" min="0" max="100000" placeholder="kcal"')}
+      <label class="full">Allergens<input data-item="allergens" value="${e(dish.allergens ?? '')}" maxlength="200"></label>
+      <fieldset class="full chips"><legend>Dietary tags</legend>${TAGS.map((tag) =>
+        `<label class="chip"><input type="checkbox" data-tag="${tag}" ${checked(dish.tags?.includes(tag))}><span>${TAG_LABELS[tag]}</span></label>`).join('')}</fieldset>
     </div>
     <div class="row flags">
       <label><input type="checkbox" data-item="available" ${checked(dish.available)}> Available</label>
@@ -108,21 +174,46 @@ function dishesHTML(menu) {
       <div class="row"><input data-section-name value="${e(section.name)}" aria-label="Section name" maxlength="80">
       <button class="btn quiet" data-do="up-section" aria-label="Move section up" ${index === 0 ? 'disabled' : ''}>↑</button>
       <button class="btn quiet danger" data-do="remove-section" aria-label="Delete section">✕</button></div>
+      <input class="section-note" data-section-note value="${e(section.note ?? '')}" aria-label="Section note, shown under the title" placeholder="Served until 12:00" maxlength="160">
       ${section.items.map(dishHTML).join('')}
       <div class="section-actions"><button class="btn quiet" data-do="add-dish">+ Add dish</button></div>
     </div>`).join('') : '<div class="empty"><p>Import a menu photo or create your first section.</p></div>'}
     <button class="btn" data-do="add-section">+ Add section</button>`;
 }
 
+const minis = {
+  osteria: '<i class="mini-photo"></i><b>Osteria</b><i class="mini-text"></i><i class="mini-text short"></i>',
+  carta: '<b>Carta</b><i class="mini-rule"></i><i class="mini-entry"></i><i class="mini-entry"></i><i class="mini-entry"></i>',
+  mercato: '<b>Mercato</b><span class="mini-cards"><i></i><i></i><i></i><i></i></span>',
+  notte: '<i class="mini-glow"></i><b>Notte</b><i class="mini-text short"></i>'
+};
+
+const miniStyle = ({ bg, surface, text, accent, line }) =>
+  `--m-bg:${bg};--m-surface:${surface};--m-text:${text};--m-accent:${accent};--m-line:${line}`;
+
+function loadTemplateFonts() {
+  if (fontsLoaded) return;
+  fontsLoaded = true;
+  for (const { fonts } of Object.values(templates)) document.head.insertAdjacentHTML('beforeend', `<link rel="stylesheet" href="${e(fonts)}">`);
+}
+
 function designHTML(menu) {
-  return `<div class="row spread"><h2>Color palette</h2><button class="btn" data-do="random">✦ Surprise me</button></div>
-    <div class="swatches">${Object.entries(palettes).map(([key, style]) => `<button class="swatch" style="--sw-bg:${style.bg};--sw-text:${style.text}" data-do="palette" data-value="${key}" aria-pressed="${menu.theme === key}">${style.name}</button>`).join('')}</div>
-    <div class="fields">
-      <label>Layout<select data-menu="layout">${optionList(layouts, menu.layout)}</select></label>
-      <label>Heading type<select data-menu="font">${optionList(fonts, menu.font)}</select></label>
-      <label>Accent color<input type="color" data-menu="accent" value="${menu.accent || palettes[menu.theme].accent}"></label>
-      <div class="row"><button class="btn" data-do="reset-color">Reset accent</button></div>
-    </div>`;
+  const current = designOf(menu);
+  const { palettes } = templates[current.template];
+  return `<div class="row spread"><h2>Template</h2><button class="btn" data-do="random">✦ Surprise me</button></div>
+    <div class="template-grid" role="group" aria-label="Template">${Object.entries(templates).map(([key, template]) => {
+      const colors = key === current.template ? current.colors : template.palettes[template.defaultPalette];
+      return `<button class="template-card" data-do="template" data-value="${key}" ${pressed(key === current.template)}>
+        <span class="mini mini-${key}" style="${miniStyle(colors)}" aria-hidden="true">${minis[key]}</span>
+        <span class="template-copy"><strong>${e(template.name)}</strong><span>${e(template.blurb)}</span></span></button>`;
+    }).join('')}</div>
+    <h2 class="design-label">Palette</h2>
+    <div class="palettes" role="group" aria-label="Palette">${Object.entries(palettes).map(([key, palette]) =>
+      `<button class="palette" data-do="palette" data-value="${key}" ${pressed(key === current.palette)} style="${miniStyle(palette)}">
+        <span class="palette-chip" aria-hidden="true"><i></i><i></i></span>${e(palette.name)}</button>`).join('')}</div>
+    <div class="accent-row"><label class="accent-pick"><input type="color" data-menu="accent" value="${current.colors.accent}">
+      <span>Accent colour<small>Buttons, prices and highlights</small></span></label>
+      <button class="btn quiet" data-do="reset-color">Reset to palette</button></div>`;
 }
 
 function settingsHTML(menu) {
@@ -136,20 +227,27 @@ function settingsHTML(menu) {
 function renderStudio() {
   const { draft, publishedAt } = state;
   const tabs = { dishes: 'Dishes', design: 'Design', settings: 'Settings' };
-  app.innerHTML = top('<a class="btn" href="/">Your menus</a>') + `<main class="studio">
-    <div class="studio-head"><div><a class="breadcrumb" href="/">Your menus</a>
-      <h1 class="studio-title">${e(draft.name)}</h1><p class="status" id="save-status"></p></div>
-      <div class="actions">${publishedAt ? '<button class="btn" data-do="share">Share & QR</button>' : ''}
-      <button class="btn" data-do="save">Save draft</button><button class="btn primary" data-do="publish">Publish menu</button></div>
-    </div>
-    <div class="workspace"><section class="panel" aria-label="Menu editor">
-      <nav class="tabs" role="tablist" aria-label="Editor tabs">${Object.entries(tabs).map(([key, label]) =>
-        `<button role="tab" data-do="tab" data-value="${key}" aria-selected="${key === tab}">${label}</button>`).join('')}</nav>
-      <div role="tabpanel">${tab === 'dishes' ? dishesHTML(draft) : tab === 'design' ? designHTML(draft) : settingsHTML(draft)}</div>
-      </section><aside class="preview"><div class="row spread preview-head"><h2>Guest preview</h2><span class="status">Mobile</span></div>
-      <div class="phone" id="preview-menu">${menuHTML(draft, 'preview')}</div></aside></div>
+  if (!document.querySelector('.studio')) {
+    app.innerHTML = top('<a class="btn" href="/">Your menus</a>') + `<main class="studio">
+      <div class="studio-head"><div><a class="breadcrumb" href="/">Your menus</a>
+        <h1 class="studio-title"></h1><p class="status" id="save-status"></p></div>
+        <div class="actions" id="studio-actions"></div>
+      </div>
+      <div class="workspace"><section class="panel" aria-label="Menu editor"></section>
+        <aside class="preview" aria-label="Guest preview"><div class="row spread preview-head"><h2>Guest preview</h2>${deviceToggle()}</div>
+        ${deviceHTML('Guest menu preview')}</aside></div>
     </main>`;
+    mountDevice();
+  }
+  if (tab === 'design') loadTemplateFonts();
+  document.querySelector('.studio-title').textContent = draft.name;
+  document.querySelector('#studio-actions').innerHTML = `${publishedAt ? '<button class="btn" data-do="share">Share & QR</button>' : ''}
+    <button class="btn" data-do="save">Save draft</button><button class="btn primary" data-do="publish">Publish menu</button>`;
+  document.querySelector('.panel').innerHTML = `<nav class="tabs" role="tablist" aria-label="Editor tabs">${Object.entries(tabs).map(([key, label]) =>
+    `<button role="tab" data-do="tab" data-value="${key}" aria-selected="${key === tab}">${label}</button>`).join('')}</nav>
+    <div role="tabpanel">${tab === 'dishes' ? dishesHTML(draft) : tab === 'design' ? designHTML(draft) : settingsHTML(draft)}</div>`;
   updateStatus();
+  sendPreview();
 }
 
 function updateStatus() {
@@ -162,13 +260,26 @@ function changed(redraw = false) {
   if (redraw) renderStudio();
   else {
     updateStatus();
-    const preview = document.querySelector('#preview-menu');
-    if (preview) {
-      const previous = preview.scrollTop;
-      preview.innerHTML = menuHTML(state.draft, 'preview');
-      preview.scrollTop = previous;
-    }
+    sendPreview();
   }
+}
+
+function withDefaults(section) {
+  section.note ??= '';
+  for (const item of section.items) {
+    item.portion ??= '';
+    item.tags ??= [];
+  }
+  return section;
+}
+
+function load(result) {
+  const { draft } = result;
+  const { template, palette } = designOf(draft);
+  Object.assign(draft, { template, palette });
+  for (const key of ['theme', 'layout', 'font']) delete draft[key];
+  draft.sections.forEach(withDefaults);
+  state = result;
 }
 
 function selected(target) {
@@ -201,8 +312,17 @@ app.addEventListener('input', ({ target }) => {
   if (target.dataset.menu) {
     state.draft[target.dataset.menu] = target.value;
     if (target.dataset.menu === 'name') document.querySelector('.studio-title').textContent = target.value;
+    if (target.dataset.menu === 'accent') document.querySelector('.template-card[aria-pressed="true"] .mini')?.style.setProperty('--m-accent', target.value);
   } else if (target.hasAttribute('data-section-name')) {
     selected(target).section.name = target.value;
+  } else if (target.hasAttribute('data-section-note')) {
+    selected(target).section.note = target.value;
+  } else if (target.dataset.tag) {
+    const { item } = selected(target);
+    const tags = new Set(item.tags);
+    tags[target.checked ? 'add' : 'delete'](target.dataset.tag);
+    item.tags = TAGS.filter((tag) => tags.has(tag));
+    openDish = item.id;
   } else if (target.dataset.item) {
     const { item } = selected(target);
     setItemValue(target, item);
@@ -213,8 +333,8 @@ app.addEventListener('input', ({ target }) => {
 
 function newDish() {
   return {
-    id: crypto.randomUUID(), name: 'New dish', description: '', allergens: '',
-    price: null, calories: null, photo: null, featured: false, available: true, review: false
+    id: crypto.randomUUID(), name: 'New dish', description: '', allergens: '', portion: '', tags: [],
+    price: null, calories: null, photo: null, originalPhoto: null, featured: false, available: true, review: false
   };
 }
 
@@ -256,6 +376,7 @@ function photoEditor(item, job) {
 
 const sourcePhoto = (item) => item.originalPhoto || item.photo;
 const findDish = (id) => state.draft.sections.flatMap((section) => section.items).find((dish) => dish.id === id);
+const pick = (options) => options[Math.floor(Math.random() * options.length)];
 
 async function watchEdit(item, job, version) {
   photoEditor(item, job);
@@ -279,7 +400,7 @@ async function save(publish) {
   root.inert = true;
   try {
     const path = 'menus/' + state.id + (publish ? '/publish' : '');
-    state = await api(path, publish ? 'POST' : 'PUT', { draft: state.draft, version: state.version });
+    load(await api(path, publish ? 'POST' : 'PUT', { draft: state.draft, version: state.version }));
     dirty = false;
     renderStudio();
     if (publish) share();
@@ -288,6 +409,10 @@ async function save(publish) {
     busy = false;
     root.inert = false;
   }
+}
+
+function setPressed(group, value) {
+  for (const button of document.querySelectorAll(`[data-do="${group}"]`)) button.setAttribute('aria-pressed', button.dataset.value === value);
 }
 
 document.addEventListener('click', async (event) => {
@@ -307,6 +432,20 @@ document.addEventListener('click', async (event) => {
       if (navigator.clipboard) await navigator.clipboard.writeText(input.value);
       else { input.select(); document.execCommand('copy'); }
       tell('Menu link copied.');
+      return;
+    }
+    if (action === 'device') {
+      device = target.dataset.value;
+      document.querySelector('.device').dataset.size = device;
+      setPressed('device', device);
+      fitDevice();
+      return;
+    }
+    if (action === 'demo') {
+      demo = target.dataset.value;
+      document.querySelector('#example-link').href = '/m/' + demo;
+      setPressed('demo', demo);
+      sendPreview();
       return;
     }
     if (!state) return;
@@ -329,7 +468,7 @@ document.addEventListener('click', async (event) => {
       openDish = dish.id;
       dialog.close();
     } else if (action === 'add-section') {
-      state.draft.sections.push({ id: crypto.randomUUID(), name: 'New section', items: [] });
+      state.draft.sections.push({ id: crypto.randomUUID(), name: 'New section', note: '', items: [] });
     } else if (action === 'remove-section') {
       if (section.items.length && !confirm('Delete this section and all its dishes?')) return;
       state.draft.sections = state.draft.sections.filter((entry) => entry !== section);
@@ -351,20 +490,17 @@ document.addEventListener('click', async (event) => {
       item.originalPhoto = null;
     } else if (action === 'reviewed') {
       item.review = false;
+    } else if (action === 'template') {
+      const key = target.dataset.value;
+      if (key === state.draft.template) return;
+      Object.assign(state.draft, { template: key, palette: templates[key].defaultPalette });
     } else if (action === 'palette') {
-      state.draft.theme = target.dataset.value;
-      state.draft.accent = '';
+      Object.assign(state.draft, { palette: target.dataset.value, accent: '' });
     } else if (action === 'reset-color') {
       state.draft.accent = '';
     } else if (action === 'random') {
-      const choose = (options, current) => {
-        const entries = Object.keys(options).filter((entry) => entry !== current);
-        return entries[Math.floor(Math.random() * entries.length)];
-      };
-      state.draft.theme = choose(palettes, state.draft.theme);
-      state.draft.layout = choose(layouts, state.draft.layout);
-      state.draft.font = Math.random() < 0.75 ? 'serif' : 'sans';
-      state.draft.accent = '';
+      const template = pick(Object.keys(templates).filter((key) => key !== state.draft.template));
+      Object.assign(state.draft, { template, palette: pick(Object.keys(templates[template].palettes)), accent: '' });
     } else return;
     changed(true);
   } catch (error) { tell(error.message); }
@@ -372,20 +508,32 @@ document.addEventListener('click', async (event) => {
 
 dialog.addEventListener('close', () => { editDialogVersion++; });
 
-async function prepareImage(file) {
-  if (file.size <= 6 * 1024 * 1024 && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return file;
-  try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+function hasAlpha(context, width, height) {
+  const { data } = context.getImageData(0, 0, width, height);
+  for (let index = 3; index < data.length; index += 4) if (data[index] < 255) return true;
+  return false;
+}
+
+async function prepareImage(file, max) {
+  let bitmap;
+  try { bitmap = await createImageBitmap(file); } catch { throw new Error('Choose a JPEG, PNG, or WebP photo.'); }
+  const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+  if (scale === 1 && file.size <= 700 * 1024 && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
     bitmap.close();
-    const result = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
-    if (result) return result;
-  } catch {}
-  throw new Error('Choose a JPEG, PNG, or WebP photo under 6 MB.');
+    return { blob: file, width, height };
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  context.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+  const alpha = ['image/png', 'image/webp'].includes(file.type) && hasAlpha(context, width, height);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, alpha ? 'image/webp' : 'image/jpeg', alpha ? 0.9 : 0.85));
+  if (!blob) throw new Error('This photo could not be prepared. Try another one.');
+  return { blob, width, height };
 }
 
 dialog.addEventListener('submit', async (event) => {
@@ -407,11 +555,12 @@ dialog.addEventListener('submit', async (event) => {
       location.href = '/studio?id=' + menu.id;
     } else if (action === 'import') {
       submit.textContent = 'Reading menu…';
-      const { sections } = await api('menus/' + state.id + '/import', 'POST', await prepareImage(data.file));
+      const { blob } = await prepareImage(data.file, 2000);
+      const { sections } = await api('menus/' + state.id + '/import', 'POST', blob);
       if (!form.isConnected) return;
       if (!sections.length) throw new Error('No dishes found. Try a sharper photo.');
       const next = structuredClone(state.draft.sections);
-      for (const section of sections) {
+      for (const section of sections.map(withDefaults)) {
         const match = next.find((entry) => entry.name.trim().toLowerCase() === section.name.toLowerCase());
         if (match) match.items.push(...section.items);
         else next.push(section);
@@ -425,11 +574,13 @@ dialog.addEventListener('submit', async (event) => {
       tell('Page imported. Check the extracted text and prices before publishing.');
     } else if (action === 'upload') {
       submit.textContent = 'Uploading…';
-      const { id } = await api('menus/' + state.id + '/photos', 'POST', await prepareImage(data.file));
+      const { blob, width, height } = await prepareImage(data.file, 1600);
+      const { id } = await api(`menus/${state.id}/photos?w=${width}&h=${height}`, 'POST', blob);
       const item = findDish(form.dataset.dish);
       if (!item || !form.isConnected) return;
       item.photo = id;
       item.originalPhoto = null;
+      state.draft.photos = { ...state.draft.photos, [id]: { w: width, h: height } };
       dialog.close();
       changed(true);
     } else if (action === 'edit') {
@@ -453,23 +604,15 @@ window.addEventListener('beforeunload', (event) => {
 });
 
 async function start() {
-  const slug = route.match(/^\/m\/([a-z0-9-]+)$/)?.[1];
-  if (slug) {
-    const menu = slug === 'osteria-verde-example' ? sample : await api('public/' + slug);
-    document.title = menu.name + ' · Menu';
-    app.className = 'guest-page';
-    app.innerHTML = `<main>${menuHTML(menu)}</main>`;
-    return;
-  }
   try {
     if (route === '/studio') {
       const id = new URLSearchParams(location.search).get('id');
       if (!id) { await dashboard(); return; }
-      state = await api('menus/' + encodeURIComponent(id));
+      load(await api('menus/' + encodeURIComponent(id)));
       renderStudio();
     } else await dashboard();
   } catch (error) {
-    if (error.status === 401) welcome();
+    if (error.status === 401) await welcome();
     else throw error;
   }
 }

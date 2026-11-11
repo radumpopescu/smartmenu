@@ -1,0 +1,62 @@
+.t-mercato { --display: "Bricolage Grotesque", system-ui, sans-serif; --body: "Figtree", system-ui, sans-serif; --radius: 20px; }
+
+/* A block of colour with the photo as a card hanging off it */
+.t-mercato .sm-hero { display: flex; flex-direction: column-reverse; padding: 40px var(--pad) 36px; background: var(--accent); color: var(--on-accent); }
+.t-mercato .sm-hero-copy { width: 100%; }
+.t-mercato .sm-kicker { display: inline-block; padding: 5px 11px; border: 1.5px solid currentColor; border-radius: 999px; font-size: 10.5px; letter-spacing: .16em; }
+.t-mercato .sm-hero h1 { margin-top: 16px; font-size: clamp(50px, 15vw, 104px); font-weight: 800; line-height: .9; letter-spacing: -.04em; }
+.t-mercato .sm-sub { margin-top: 16px; font-size: 17px; font-weight: 500; opacity: .92; }
+.t-mercato .sm-hero.has-photo { margin-bottom: 64px; padding-bottom: 0; }
+.t-mercato .sm-hero-photo { width: 100%; max-width: var(--max); aspect-ratio: 16 / 10; margin: 26px auto -48px; border-radius: 26px; overflow: hidden; box-shadow: 0 18px 40px -18px rgb(0 0 0 / .5); }
+
+.t-mercato .sm-nav { border-bottom: 0; }
+.t-mercato .sm-nav-track { gap: 8px; padding-block: 10px; }
+.t-mercato .sm-nav a { padding: 8px 15px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font-weight: 600; }
+.t-mercato .sm-nav a[aria-current] { background: var(--text); border-color: var(--text); color: var(--bg); }
+.t-mercato .sm-filters { padding-top: 4px; }
+.t-mercato .sm-filter { font-weight: 600; }
+
+.t-mercato .sm-section { padding-top: 36px; }
+.t-mercato .sm-section h2 { font-size: clamp(32px, 8.5vw, 48px); font-weight: 800; line-height: 1; letter-spacing: -.03em; }
+.t-mercato .sm-line h3 { font-weight: 700; font-size: 16.5px; }
+.t-mercato .sm-price { font-weight: 700; }
+
+/* Lists sit together on one card */
+.t-mercato .is-plain .sm-items, .t-mercato .is-mixed .sm-items { padding: 0 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.t-mercato .is-plain .sm-dish, .t-mercato .is-mixed .sm-dish { margin-top: -1px; padding: 15px 0; }
+.t-mercato .sm-dish .sm-photo { width: 76px; border-radius: 14px; }
+.t-mercato .sm-dish.is-featured:not(.has-photo) h3 span, .t-mercato .sm-dish.is-featured:not(.has-photo) h3 { text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent); text-decoration-thickness: .42em; text-underline-offset: -.18em; text-decoration-skip-ink: none; }
+
+/* Photo sections become cards */
+.t-mercato .is-rich .sm-items { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.t-mercato .is-rich .sm-dish { display: block; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.t-mercato .is-rich .sm-dish .sm-photo { width: auto; aspect-ratio: 4 / 3; border-radius: 0; }
+.t-mercato .is-rich .sm-copy { padding: 12px 14px 14px; }
+.t-mercato .is-rich .sm-dish:not(.has-photo), .t-mercato .is-rich .sm-dish.is-featured { grid-column: 1 / -1; }
+.t-mercato .is-rich .sm-dish.has-photo:not(.is-featured) .sm-line { display: block; }
+.t-mercato .is-rich .sm-dish.has-photo:not(.is-featured) h3 { font-size: 15.5px; }
+.t-mercato .is-rich .sm-dish.has-photo:not(.is-featured) .sm-price { display: block; margin-top: 4px; color: var(--accent); }
+.t-mercato .is-rich .sm-dish.has-photo:not(.is-featured) .sm-desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; }
+.t-mercato .is-rich .sm-dish.is-cutout .sm-photo { padding: 12px; background: var(--faint); }
+
+.t-mercato .sm-dish.is-featured.has-photo { display: block; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; margin: 0 0 12px; }
+.t-mercato .is-mixed .sm-dish.is-featured.has-photo { margin: 15px 0; }
+.t-mercato .sm-dish.is-featured.has-photo .sm-photo { width: auto; aspect-ratio: 16 / 10; border-radius: 0; }
+.t-mercato .sm-dish.is-featured.has-photo .sm-copy { padding: 16px 18px 18px; }
+.t-mercato .sm-dish.is-featured.has-photo h3 { font: 800 25px/1.05 var(--display); letter-spacing: -.02em; }
+.t-mercato .sm-dish.is-featured.has-photo .sm-price { padding: 5px 11px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 14px; }
+
+.t-mercato .sm-footer { margin-top: 12px; border: 0; background: var(--accent); color: var(--on-accent); }
+.t-mercato .sm-footer-name { font-size: 40px; font-weight: 800; line-height: 1; letter-spacing: -.03em; }
+.t-mercato .sm-footer-note { color: inherit; opacity: .85; }
+.t-mercato .sm-sheet .sm-line h3 { font: 800 28px/1.05 var(--display); letter-spacing: -.02em; text-decoration: none; }
+
+@media (min-width: 720px) {
+  .t-mercato .sm-hero { padding-top: 64px; }
+  .t-mercato .sm-hero-photo { aspect-ratio: 21 / 9; }
+  .t-mercato .is-plain .sm-items, .t-mercato .is-mixed .sm-items { padding: 0 24px; column-gap: 48px; }
+  .t-mercato .is-rich .sm-items { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-flow: dense; gap: 16px; }
+  .t-mercato .is-rich .sm-dish.is-featured { grid-column: span 2; grid-row: span 2; margin: 0; }
+  .t-mercato .is-rich .sm-dish.is-featured .sm-photo { aspect-ratio: 4 / 3; }
+  .t-mercato .is-rich .sm-dish:not(.has-photo) { grid-column: auto; }
+}
