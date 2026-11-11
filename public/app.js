@@ -1,49 +1,18 @@
 import { TAGS, TAG_LABELS, designOf, escape as e, photoURL, templates } from '/guest/render.js';
+import { S, api, app, dialog, findDish, load, runToastAction, showDialog, tell, withDefaults } from '/studio/core.js';
+import { deviceHTML, deviceToggle, mountDevice, sendPreview, setDevice } from '/studio/preview.js';
+import { edited, flush, problem, renderStatus, resetSaves, showBlocker, unsaved } from '/studio/save.js';
+import { applyProposal, assistantHTML, discardProposal, dismissAnswer, ask, fit, renderAssistant, setView, toggleMic } from '/studio/assistant.js';
+import { historyHTML, leaveRevision, loadHistory, resetHistory, restoreRevision, viewRevision } from '/studio/history.js';
+import { openPhotoEditor, requestEdit, sourcePhoto } from '/studio/photos.js';
 
-const app = document.querySelector('#app');
-const dialog = document.querySelector('#dialog');
-const toast = document.querySelector('#toast');
 const route = location.pathname.replace(/\/$/, '');
-let state;
-let tab = 'dishes';
-let dirty = false;
 let busy = false;
-let notice;
-let openDish = '';
-let editDialogVersion = 0;
-let device = 'phone';
-let samples;
 let demo = 'demo-osteria';
 let fontsLoaded = false;
 
-async function api(path, method = 'GET', data) {
-  const options = { method };
-  if (data instanceof Blob) {
-    options.body = data;
-    options.headers = { 'Content-Type': data.type };
-  } else if (data !== undefined) {
-    options.body = JSON.stringify(data);
-    options.headers = { 'Content-Type': 'application/json' };
-  }
-  const response = await fetch('/api/' + path, options);
-  const result = await response.json();
-  if (!response.ok) throw Object.assign(new Error(result.error), { status: response.status });
-  return result;
-}
-
-function tell(message) {
-  clearTimeout(notice);
-  toast.textContent = message;
-  notice = setTimeout(() => { toast.textContent = ''; }, 5000);
-}
-
 function top(right = '') {
   return `<header class="top"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true">S</span>SmartMenu</a><div class="actions">${right}</div></header>`;
-}
-
-function showDialog(title, content) {
-  dialog.innerHTML = `<div class="row spread"><h2>${title}</h2><button class="btn quiet" data-do="close" aria-label="Close dialog">✕</button></div>${content}`;
-  if (!dialog.open) dialog.showModal();
 }
 
 function auth(mode) {
@@ -57,53 +26,6 @@ function auth(mode) {
 }
 
 const pressed = (value) => `aria-pressed="${value}"`;
-
-function deviceHTML(label) {
-  return `<div class="device" data-size="${device}"><div class="device-stage">
-    <div class="device-frame"><iframe id="preview-frame" src="/guest/frame" title="${label}"></iframe></div>
-  </div></div>`;
-}
-
-const deviceToggle = () => `<div class="segmented" role="group" aria-label="Preview size">${['phone', 'tablet'].map((size) =>
-  `<button data-do="device" data-value="${size}" ${pressed(size === device)}>${size === 'phone' ? 'Phone' : 'Tablet'}</button>`).join('')}</div>`;
-
-function fitDevice() {
-  const root = document.querySelector('.device');
-  if (!root) return;
-  const stage = root.querySelector('.device-stage');
-  const frame = root.querySelector('.device-frame');
-  const bezel = root.dataset.size === 'tablet' ? 10 : 7;
-  const width = (root.dataset.size === 'tablet' ? 820 : 390) + bezel * 2;
-  const scale = Math.min(1, stage.clientWidth / width);
-  const height = Math.round(Math.min(Number(root.dataset.max) || 700, Math.max(385, innerHeight * 0.73)));
-  stage.style.height = height + 'px';
-  frame.style.width = width + 'px';
-  frame.style.height = height / scale + 'px';
-  frame.style.setProperty('--scale', scale);
-}
-
-const fitter = new ResizeObserver(fitDevice);
-addEventListener('resize', fitDevice);
-
-function mountDevice() {
-  fitter.disconnect();
-  const stage = document.querySelector('.device-stage');
-  if (stage) fitter.observe(stage);
-  fitDevice();
-}
-
-function sendPreview() {
-  const frame = document.querySelector('#preview-frame');
-  const menu = state ? state.draft : samples?.[demo];
-  if (frame?.dataset.ready && menu) frame.contentWindow.postMessage({ type: 'sm-preview', menu }, location.origin);
-}
-
-addEventListener('message', (event) => {
-  const frame = document.querySelector('#preview-frame');
-  if (event.origin !== location.origin || event.source !== frame?.contentWindow || event.data?.type !== 'sm-frame-ready') return;
-  frame.dataset.ready = 'true';
-  sendPreview();
-});
 
 async function welcome() {
   app.innerHTML = top('<button class="btn" data-do="login">Sign in</button><button class="btn primary" data-do="register">Create account</button>') +
@@ -119,7 +41,9 @@ async function welcome() {
   document.querySelector('.device').dataset.max = 600;
   mountDevice();
   try {
-    ({ samples } = await import('/guest/samples.js'));
+    const { samples } = await import('/guest/samples.js');
+    S.samples = samples;
+    S.sample = samples[demo];
     sendPreview();
   } catch (error) { console.error(error); }
 }
@@ -141,12 +65,12 @@ const checked = (value) => value ? 'checked' : '';
 const field = (scope, key, label, value, attrs = '') =>
   `<label>${label}<input data-${scope}="${key}" value="${e(value ?? '')}" ${attrs}></label>`;
 
-function dishHTML(dish) {
+function dishHTML(dish, index, items) {
   const cents = dish.price === null ? '' : (dish.priceInput ?? String(dish.price / 100));
-  return `<details class="dish-edit" data-dish="${dish.id}" ${openDish === dish.id ? 'open' : ''}>
+  return `<div class="dish-edit" data-dish="${dish.id}"><details ${S.openDish === dish.id ? 'open' : ''}>
     <summary>${e(dish.name || 'New dish')}${dish.review ? '<span>Review needed</span>' : ''}</summary>
     <div class="fields">
-      ${field('item', 'name', 'Name', dish.name, 'maxlength="120"')}
+      ${field('item', 'name', 'Name', dish.name, 'maxlength="120" required')}
       ${field('item', 'price', 'Price', cents, 'type="text" inputmode="decimal" placeholder="0.00" maxlength="9"')}
       <label class="full">Description<textarea data-item="description" rows="2" maxlength="500">${e(dish.description)}</textarea></label>
       ${field('item', 'portion', 'Portion', dish.portion, 'maxlength="40" placeholder="350 g"')}
@@ -165,19 +89,25 @@ function dishHTML(dish) {
       ${dish.photo ? `<img class="photo-inline" src="${photoURL(dish.photo)}" alt=""><button class="btn" data-do="edit-photo">Improve photo</button><button class="btn quiet" data-do="remove-photo">Remove photo</button>` : ''}
       <button class="btn" data-do="upload-photo">${dish.photo ? 'Replace photo' : '+ Upload photo'}</button>
       <button class="btn quiet danger" data-do="remove-dish">Delete dish</button>
-    </div></details>`;
+    </div></details>
+    <div class="order" role="group" aria-label="Order">
+      <button class="btn quiet" data-do="dish-up" aria-label="Move dish up" ${index === 0 ? 'disabled' : ''}>↑</button>
+      <button class="btn quiet" data-do="dish-down" aria-label="Move dish down" ${index === items.length - 1 ? 'disabled' : ''}>↓</button>
+    </div></div>`;
 }
 
 function dishesHTML(menu) {
+  const last = menu.sections.length - 1;
   return `<div class="row spread"><h2>Sections and dishes</h2><button class="btn" data-do="import">↑ Import menu photo</button></div>
     ${menu.sections.length ? menu.sections.map((section, index) => `<div class="section-edit" data-section="${section.id}">
-      <div class="row"><input data-section-name value="${e(section.name)}" aria-label="Section name" maxlength="80">
-      <button class="btn quiet" data-do="up-section" aria-label="Move section up" ${index === 0 ? 'disabled' : ''}>↑</button>
+      <div class="row section-head"><input data-section-name value="${e(section.name)}" aria-label="Section name" maxlength="80" required>
+      <button class="btn quiet" data-do="section-up" aria-label="Move section up" ${index === 0 ? 'disabled' : ''}>↑</button>
+      <button class="btn quiet" data-do="section-down" aria-label="Move section down" ${index === last ? 'disabled' : ''}>↓</button>
       <button class="btn quiet danger" data-do="remove-section" aria-label="Delete section">✕</button></div>
       <input class="section-note" data-section-note value="${e(section.note ?? '')}" aria-label="Section note, shown under the title" placeholder="Served until 12:00" maxlength="160">
       ${section.items.map(dishHTML).join('')}
       <div class="section-actions"><button class="btn quiet" data-do="add-dish">+ Add dish</button></div>
-    </div>`).join('') : '<div class="empty"><p>Import a menu photo or create your first section.</p></div>'}
+    </div>`).join('') : '<div class="empty"><p>Import a menu photo, ask the assistant, or create your first section.</p></div>'}
     <button class="btn" data-do="add-section">+ Add section</button>`;
 }
 
@@ -218,72 +148,52 @@ function designHTML(menu) {
 
 function settingsHTML(menu) {
   return `<div class="fields">
-    ${field('menu', 'name', 'Restaurant name', menu.name, 'maxlength="80"')}
+    ${field('menu', 'name', 'Restaurant name', menu.name, 'maxlength="80" required')}
     <label>Currency<select data-menu="currency">${optionList({ RON: 'RON', EUR: 'EUR', USD: 'USD', GBP: 'GBP' }, menu.currency)}</select></label>
     <label class="full">Menu introduction<textarea data-menu="subtitle" rows="3" maxlength="180">${e(menu.subtitle)}</textarea></label>
   </div>`;
 }
 
+const tabs = { dishes: 'Dishes', design: 'Design', settings: 'Settings', history: 'History' };
+const tabPanel = { dishes: dishesHTML, design: designHTML, settings: settingsHTML, history: historyHTML };
+
 function renderStudio() {
-  const { draft, publishedAt } = state;
-  const tabs = { dishes: 'Dishes', design: 'Design', settings: 'Settings' };
+  const { draft, publishedAt } = S.state;
   if (!document.querySelector('.studio')) {
     app.innerHTML = top('<a class="btn" href="/">Your menus</a>') + `<main class="studio">
       <div class="studio-head"><div><a class="breadcrumb" href="/">Your menus</a>
-        <h1 class="studio-title"></h1><p class="status" id="save-status"></p></div>
+        <h1 class="studio-title"></h1><p class="status" id="save-status" role="status"></p></div>
         <div class="actions" id="studio-actions"></div>
       </div>
-      <div class="workspace"><section class="panel" aria-label="Menu editor"></section>
+      <div class="workspace">${assistantHTML()}<section class="panel" aria-label="Menu editor"></section>
         <aside class="preview" aria-label="Guest preview"><div class="row spread preview-head"><h2>Guest preview</h2>${deviceToggle()}</div>
+        <div class="preview-banner" id="preview-banner" hidden></div>
         ${deviceHTML('Guest menu preview')}</aside></div>
     </main>`;
     mountDevice();
   }
-  if (tab === 'design') loadTemplateFonts();
+  if (S.tab === 'design') loadTemplateFonts();
   document.querySelector('.studio-title').textContent = draft.name;
   document.querySelector('#studio-actions').innerHTML = `${publishedAt ? '<button class="btn" data-do="share">Share & QR</button>' : ''}
-    <button class="btn" data-do="save">Save draft</button><button class="btn primary" data-do="publish">Publish menu</button>`;
+    <button class="btn primary" data-do="publish">Publish menu</button>`;
   document.querySelector('.panel').innerHTML = `<nav class="tabs" role="tablist" aria-label="Editor tabs">${Object.entries(tabs).map(([key, label]) =>
-    `<button role="tab" data-do="tab" data-value="${key}" aria-selected="${key === tab}">${label}</button>`).join('')}</nav>
-    <div role="tabpanel">${tab === 'dishes' ? dishesHTML(draft) : tab === 'design' ? designHTML(draft) : settingsHTML(draft)}</div>`;
-  updateStatus();
+    `<button role="tab" data-do="tab" data-value="${key}" aria-selected="${key === S.tab}">${label}</button>`).join('')}</nav>
+    <div role="tabpanel" aria-label="${tabs[S.tab]}">${tabPanel[S.tab](draft)}</div>`;
+  renderStatus();
+  renderAssistant();
   sendPreview();
 }
 
-function updateStatus() {
-  const status = document.querySelector('#save-status');
-  if (status) status.textContent = dirty ? 'Unsaved changes' : state.publishedAt ? 'Published · draft saved' : 'Draft saved';
-}
+S.render = renderStudio;
 
-function changed(redraw = false) {
-  dirty = true;
+function changed(redraw = false, meta) {
+  edited(meta);
   if (redraw) renderStudio();
-  else {
-    updateStatus();
-    sendPreview();
-  }
-}
-
-function withDefaults(section) {
-  section.note ??= '';
-  for (const item of section.items) {
-    item.portion ??= '';
-    item.tags ??= [];
-  }
-  return section;
-}
-
-function load(result) {
-  const { draft } = result;
-  const { template, palette } = designOf(draft);
-  Object.assign(draft, { template, palette });
-  for (const key of ['theme', 'layout', 'font']) delete draft[key];
-  draft.sections.forEach(withDefaults);
-  state = result;
+  else sendPreview();
 }
 
 function selected(target) {
-  const section = state.draft.sections.find((entry) => entry.id === target.closest('[data-section]')?.dataset.section);
+  const section = S.state.draft.sections.find((entry) => entry.id === target.closest('[data-section]')?.dataset.section);
   const item = section?.items.find((entry) => entry.id === target.closest('[data-dish]')?.dataset.dish);
   return { section, item };
 }
@@ -308,9 +218,9 @@ function setItemValue(target, item) {
 }
 
 app.addEventListener('input', ({ target }) => {
-  if (!state) return;
+  if (!S.state || !target.closest('.panel')) return;
   if (target.dataset.menu) {
-    state.draft[target.dataset.menu] = target.value;
+    S.state.draft[target.dataset.menu] = target.value;
     if (target.dataset.menu === 'name') document.querySelector('.studio-title').textContent = target.value;
     if (target.dataset.menu === 'accent') document.querySelector('.template-card[aria-pressed="true"] .mini')?.style.setProperty('--m-accent', target.value);
   } else if (target.hasAttribute('data-section-name')) {
@@ -322,11 +232,11 @@ app.addEventListener('input', ({ target }) => {
     const tags = new Set(item.tags);
     tags[target.checked ? 'add' : 'delete'](target.dataset.tag);
     item.tags = TAGS.filter((tag) => tags.has(tag));
-    openDish = item.id;
+    S.openDish = item.id;
   } else if (target.dataset.item) {
     const { item } = selected(target);
     setItemValue(target, item);
-    openDish = item.id;
+    S.openDish = item.id;
   } else return;
   changed();
 });
@@ -339,8 +249,8 @@ function newDish() {
 }
 
 function share() {
-  const href = new URL('/m/' + state.slug, location.origin).href;
-  const qr = '/api/menus/' + state.id + '/qr';
+  const href = new URL('/m/' + S.state.slug, location.origin).href;
+  const qr = '/api/menus/' + S.state.id + '/qr';
   showDialog('Share your menu', `<p class="dialog-copy">Use the same link and QR code whenever you publish changes.</p>
     <img class="qr" src="${qr}" alt="QR code for the published menu">
     <div class="stack"><label>Menu link<input id="share-url" readonly value="${e(href)}"></label>
@@ -359,60 +269,43 @@ function uploadDialog(item) {
     <button class="btn primary">${isImport ? 'Read menu photo' : 'Upload photo'}</button></form>`);
 }
 
-function photoEditor(item, job) {
-  const pending = job?.status === 'queued' || job?.status === 'processing';
-  const ready = job?.status === 'ready';
-  showDialog('Improve dish photo', `<p class="dialog-copy">Compare the result with the original before using it. Check the food, portion and plating.</p>
-    <div class="photo-pair"><figure><img src="${photoURL(sourcePhoto(item))}" alt="Original dish photo"><figcaption>Source photo</figcaption></figure>
-    <figure>${ready ? `<img src="${photoURL(job.result_id)}" alt="Edited dish photo">` :
-      `<div class="pending" aria-live="polite">${pending ? 'Editing your photo…' : job?.status === 'failed' ? 'The edit failed. Try again.' : 'Edited photo will appear here'}</div>`}
-    <figcaption>AI edit</figcaption></figure></div>
-    ${pending ? '' : `<form class="stack" data-form="edit" data-dish="${item.id}">
-      <label>Background<select name="background"><option value="studio">Natural tabletop</option><option value="transparent">Transparent</option></select></label>
-      <p class="form-error" role="alert"></p><div class="actions"><button class="btn">${ready ? 'Try another edit' : 'Improve photo'}</button>
-      ${ready ? `<button type="button" class="btn primary" data-do="apply-photo" data-dish-id="${item.id}" data-value="${job.result_id}">Use this photo</button>` : ''}</div>
-    </form>`}`);
-}
-
-const sourcePhoto = (item) => item.originalPhoto || item.photo;
-const findDish = (id) => state.draft.sections.flatMap((section) => section.items).find((dish) => dish.id === id);
 const pick = (options) => options[Math.floor(Math.random() * options.length)];
 
-async function watchEdit(item, job, version) {
-  photoEditor(item, job);
-  while (job && ['queued', 'processing'].includes(job.status)) {
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-    if (!dialog.open || version !== editDialogVersion) return;
-    job = await api('menus/' + state.id + '/edits/' + job.id);
-    if (dialog.open && version === editDialogVersion) photoEditor(item, job);
-  }
-}
-
-async function save(publish) {
+async function publish() {
   if (busy) return;
-  const input = document.querySelector('.panel input:invalid');
-  if (input) { input.reportValidity(); return; }
-  if (state.draft.sections.some((section) => section.items.some((item) => Number.isNaN(item.price) || Number.isNaN(item.calories)))) {
-    throw new Error('Check the price and calories on your dishes.');
+  if (!await flush()) {
+    tell('Publishing needs your changes saved first. ' + (problem() || ''));
+    return;
   }
   busy = true;
   const root = document.querySelector('.studio');
   root.inert = true;
   try {
-    const path = 'menus/' + state.id + (publish ? '/publish' : '');
-    load(await api(path, publish ? 'POST' : 'PUT', { draft: state.draft, version: state.version }));
-    dirty = false;
+    load(await api('menus/' + S.state.id + '/publish', 'POST', { draft: S.state.draft, version: S.state.version, source: 'manual' }));
+    resetSaves();
+    resetHistory();
     renderStudio();
-    if (publish) share();
-    tell(publish ? 'Menu published.' : 'Draft saved.');
+    share();
+    tell('Menu published.');
   } finally {
     busy = false;
     root.inert = false;
   }
 }
 
-function setPressed(group, value) {
-  for (const button of document.querySelectorAll(`[data-do="${group}"]`)) button.setAttribute('aria-pressed', button.dataset.value === value);
+function move(list, item, step) {
+  const index = list.indexOf(item);
+  const to = index + step;
+  if (to < 0 || to >= list.length) return false;
+  list.splice(index, 1);
+  list.splice(to, 0, item);
+  return true;
+}
+
+function refocus(selector, action, opposite) {
+  const scope = document.querySelector(selector);
+  const button = scope?.querySelector(`:scope > .row [data-do="${action}"], :scope > .order [data-do="${action}"]`);
+  (button && !button.disabled ? button : scope?.querySelector(`[data-do="${opposite}"]`))?.focus();
 }
 
 document.addEventListener('click', async (event) => {
@@ -421,6 +314,7 @@ document.addEventListener('click', async (event) => {
   const action = target.dataset.do;
   try {
     if (action === 'close') { dialog.close(); return; }
+    if (action === 'toast-action') { await runToastAction(); return; }
     if (action === 'register' || action === 'login') { auth(action); return; }
     if (action === 'logout') { await api('auth/logout', 'POST'); location.href = '/'; return; }
     if (action === 'create') {
@@ -434,51 +328,70 @@ document.addEventListener('click', async (event) => {
       tell('Menu link copied.');
       return;
     }
-    if (action === 'device') {
-      device = target.dataset.value;
-      document.querySelector('.device').dataset.size = device;
-      setPressed('device', device);
-      fitDevice();
-      return;
-    }
+    if (action === 'device') { setDevice(target.dataset.value); return; }
     if (action === 'demo') {
       demo = target.dataset.value;
       document.querySelector('#example-link').href = '/m/' + demo;
-      setPressed('demo', demo);
+      for (const button of document.querySelectorAll('[data-do="demo"]')) button.setAttribute('aria-pressed', button.dataset.value === demo);
+      S.sample = S.samples?.[demo];
       sendPreview();
       return;
     }
-    if (!state) return;
-    if (action === 'save' || action === 'publish') { await save(action === 'publish'); return; }
+    if (!S.state) return;
+    if (action === 'reload') { location.reload(); return; }
+    if (action === 'show-blocker') { showBlocker(); return; }
+    if (action === 'publish') { await publish(); return; }
     if (action === 'share') { share(); return; }
-    if (action === 'tab') { tab = target.dataset.value; renderStudio(); return; }
-    const { section, item } = selected(target);
-    if (item) openDish = item.id;
-    if (action === 'import' || action === 'upload-photo') { uploadDialog(item); return; }
-    if (action === 'edit-photo') {
-      const version = ++editDialogVersion;
-      const job = await api('menus/' + state.id + '/edits?source=' + sourcePhoto(item));
-      if (version === editDialogVersion) await watchEdit(item, job, version);
+    if (action === 'example') { const input = document.querySelector('#ask'); input.value = target.textContent; fit(); await ask(input.value); return; }
+    if (action === 'mic') { toggleMic(); return; }
+    if (action === 'apply-proposal') { await applyProposal(); return; }
+    if (action === 'discard-proposal') { discardProposal(); return; }
+    if (action === 'dismiss-answer') { dismissAnswer(); return; }
+    if (action === 'proposal-view') { setView(target.dataset.value); return; }
+    if (action === 'view-revision') { await viewRevision(target.dataset.value); return; }
+    if (action === 'history-back') { leaveRevision(); return; }
+    if (action === 'restore-revision') { await restoreRevision(); return; }
+    if (action === 'history-refresh') { resetHistory(); renderStudio(); loadHistory(); return; }
+    if (action === 'tab') {
+      if (S.tab === target.dataset.value) return;
+      S.tab = target.dataset.value;
+      if (S.tab === 'history') resetHistory();
+      else S.viewing = null;
+      renderStudio();
+      document.querySelector(`[data-do="tab"][data-value="${S.tab}"]`).focus();
+      if (S.tab === 'history') loadHistory();
       return;
     }
+    const { section, item } = selected(target);
+    if (item) S.openDish = item.id;
+    if (action === 'import' || action === 'upload-photo') { uploadDialog(item); return; }
+    if (action === 'edit-photo') { await openPhotoEditor(item); return; }
     if (action === 'apply-photo') {
       const dish = findDish(target.dataset.dishId);
       dish.originalPhoto = sourcePhoto(dish);
       dish.photo = target.dataset.value;
-      openDish = dish.id;
+      S.openDish = dish.id;
       dialog.close();
     } else if (action === 'add-section') {
-      state.draft.sections.push({ id: crypto.randomUUID(), name: 'New section', note: '', items: [] });
+      S.state.draft.sections.push({ id: crypto.randomUUID(), name: 'New section', note: '', items: [] });
     } else if (action === 'remove-section') {
       if (section.items.length && !confirm('Delete this section and all its dishes?')) return;
-      state.draft.sections = state.draft.sections.filter((entry) => entry !== section);
-    } else if (action === 'up-section') {
-      const index = state.draft.sections.indexOf(section);
-      state.draft.sections.splice(index - 1, 2, section, state.draft.sections[index - 1]);
+      S.state.draft.sections = S.state.draft.sections.filter((entry) => entry !== section);
+    } else if (action === 'section-up' || action === 'section-down') {
+      if (!move(S.state.draft.sections, section, action === 'section-up' ? -1 : 1)) return;
+      changed(true);
+      refocus(`[data-section="${section.id}"]`, action, action === 'section-up' ? 'section-down' : 'section-up');
+      return;
+    } else if (action === 'dish-up' || action === 'dish-down') {
+      if (!move(section.items, item, action === 'dish-up' ? -1 : 1)) return;
+      S.openDish = '';
+      changed(true);
+      refocus(`[data-dish="${item.id}"]`, action, action === 'dish-up' ? 'dish-down' : 'dish-up');
+      return;
     } else if (action === 'add-dish') {
       const dish = newDish();
       section.items.push(dish);
-      openDish = dish.id;
+      S.openDish = dish.id;
     } else if (action === 'remove-dish') {
       if (!confirm('Delete this dish?')) return;
       section.items = section.items.filter((entry) => entry !== item);
@@ -492,21 +405,19 @@ document.addEventListener('click', async (event) => {
       item.review = false;
     } else if (action === 'template') {
       const key = target.dataset.value;
-      if (key === state.draft.template) return;
-      Object.assign(state.draft, { template: key, palette: templates[key].defaultPalette });
+      if (key === S.state.draft.template) return;
+      Object.assign(S.state.draft, { template: key, palette: templates[key].defaultPalette });
     } else if (action === 'palette') {
-      Object.assign(state.draft, { palette: target.dataset.value, accent: '' });
+      Object.assign(S.state.draft, { palette: target.dataset.value, accent: '' });
     } else if (action === 'reset-color') {
-      state.draft.accent = '';
+      S.state.draft.accent = '';
     } else if (action === 'random') {
-      const template = pick(Object.keys(templates).filter((key) => key !== state.draft.template));
-      Object.assign(state.draft, { template, palette: pick(Object.keys(templates[template].palettes)), accent: '' });
+      const template = pick(Object.keys(templates).filter((key) => key !== S.state.draft.template));
+      Object.assign(S.state.draft, { template, palette: pick(Object.keys(templates[template].palettes)), accent: '' });
     } else return;
     changed(true);
   } catch (error) { tell(error.message); }
 });
-
-dialog.addEventListener('close', () => { editDialogVersion++; });
 
 function hasAlpha(context, width, height) {
   const { data } = context.getImageData(0, 0, width, height);
@@ -556,10 +467,10 @@ dialog.addEventListener('submit', async (event) => {
     } else if (action === 'import') {
       submit.textContent = 'Reading menu…';
       const { blob } = await prepareImage(data.file, 2000);
-      const { sections } = await api('menus/' + state.id + '/import', 'POST', blob);
+      const { sections } = await api('menus/' + S.state.id + '/import', 'POST', blob);
       if (!form.isConnected) return;
       if (!sections.length) throw new Error('No dishes found. Try a sharper photo.');
-      const next = structuredClone(state.draft.sections);
+      const next = structuredClone(S.state.draft.sections);
       for (const section of sections.map(withDefaults)) {
         const match = next.find((entry) => entry.name.trim().toLowerCase() === section.name.toLowerCase());
         if (match) match.items.push(...section.items);
@@ -567,27 +478,26 @@ dialog.addEventListener('submit', async (event) => {
       }
       const count = next.reduce((total, section) => total + section.items.length, 0);
       if (next.length > 30 || count > 300) throw new Error('The import would exceed 30 sections or 300 dishes.');
-      state.draft.sections = next;
-      openDish = sections[0].items[0].id;
+      S.state.draft.sections = next;
+      S.openDish = sections[0].items[0].id;
       dialog.close();
-      changed(true);
+      const added = sections.reduce((total, section) => total + section.items.length, 0);
+      changed(true, { source: 'import', summary: `Imported ${added} dish${added === 1 ? '' : 'es'}` });
+      flush();
       tell('Page imported. Check the extracted text and prices before publishing.');
     } else if (action === 'upload') {
       submit.textContent = 'Uploading…';
       const { blob, width, height } = await prepareImage(data.file, 1600);
-      const { id } = await api(`menus/${state.id}/photos?w=${width}&h=${height}`, 'POST', blob);
+      const { id } = await api(`menus/${S.state.id}/photos?w=${width}&h=${height}`, 'POST', blob);
       const item = findDish(form.dataset.dish);
       if (!item || !form.isConnected) return;
       item.photo = id;
       item.originalPhoto = null;
-      state.draft.photos = { ...state.draft.photos, [id]: { w: width, h: height } };
+      S.state.draft.photos = { ...S.state.draft.photos, [id]: { w: width, h: height } };
       dialog.close();
       changed(true);
     } else if (action === 'edit') {
-      const item = findDish(form.dataset.dish);
-      const version = ++editDialogVersion;
-      const job = await api('menus/' + state.id + '/edits', 'POST', { source: sourcePhoto(item), background: data.background });
-      if (dialog.open && version === editDialogVersion) await watchEdit(item, job, version);
+      await requestEdit(findDish(form.dataset.dish), data.look);
     }
   } catch (error) {
     if (errorField.isConnected) errorField.textContent = error.message;
@@ -600,7 +510,7 @@ dialog.addEventListener('submit', async (event) => {
 });
 
 window.addEventListener('beforeunload', (event) => {
-  if (dirty) { event.preventDefault(); event.returnValue = ''; }
+  if (S.state && unsaved()) { event.preventDefault(); event.returnValue = ''; }
 });
 
 async function start() {
@@ -609,6 +519,7 @@ async function start() {
       const id = new URLSearchParams(location.search).get('id');
       if (!id) { await dashboard(); return; }
       load(await api('menus/' + encodeURIComponent(id)));
+      resetSaves();
       renderStudio();
     } else await dashboard();
   } catch (error) {

@@ -116,7 +116,7 @@ function photoHTML(menu, dish, { eager = false, className = 'sm-photo' } = {}) {
   return `<figure class="${className}"><img src="${escape(photoURL(dish.photo))}" alt="${escape(dish.name)}"${size} ${eager ? 'fetchpriority="high"' : 'loading="lazy"'} decoding="async"></figure>`;
 }
 
-function dishHTML(menu, dish) {
+function dishHTML(menu, dish, ids) {
   const tags = (dish.tags ?? []).filter((tag) => TAGS.includes(tag));
   const cutout = dish.photo && menu.photos?.[dish.photo]?.cutout;
   const classes = ['sm-dish', dish.featured && 'is-featured', dish.photo && 'has-photo', cutout && 'is-cutout', dish.available === false && 'is-off']
@@ -127,7 +127,7 @@ function dishHTML(menu, dish) {
     dish.calories !== null && dish.calories !== undefined && !Number.isNaN(dish.calories) && `<span class="sm-fact">${Number(dish.calories)} kcal</span>`,
     dish.allergens && `<span class="sm-fact sm-allergens">Allergens: ${escape(dish.allergens)}</span>`
   ].filter(Boolean).join('');
-  return `<article class="${classes}"${tags.length ? ` data-tags="${tags.join(' ')}"` : ''}>
+  return `<article class="${classes}"${tags.length ? ` data-tags="${tags.join(' ')}"` : ''}${ids && dish.id ? ` data-id="${escape(dish.id)}"` : ''}>
     ${dish.photo ? photoHTML(menu, dish) : ''}
     <div class="sm-copy">
       <div class="sm-line"><h3>${escape(dish.name)}</h3><span class="sm-dots" aria-hidden="true"></span>${price ? `<span class="sm-price">${escape(price)}</span>` : ''}</div>
@@ -139,7 +139,7 @@ function dishHTML(menu, dish) {
   </article>`;
 }
 
-export function renderMenu(menu, { idPrefix = 'm' } = {}) {
+export function renderMenu(menu, { idPrefix = 'm', ids = false } = {}) {
   const { template, palette: paletteKey, colors } = designOf(menu);
   const sections = (menu.sections ?? []).filter((section) => section.items?.length);
   const dishes = sections.flatMap((section) => section.items);
@@ -160,9 +160,9 @@ export function renderMenu(menu, { idPrefix = 'm' } = {}) {
   ${usedTags.length ? `<div class="sm-filters" role="group" aria-label="Show only" hidden>${usedTags.map((tag) =>
     `<button type="button" class="sm-filter" data-tag="${tag}" aria-pressed="false">${TAG_LABELS[tag]}</button>`).join('')}</div>` : ''}
   <main class="sm-body">
-    ${sections.length ? sections.map((section, index) => `<section class="sm-section is-${sectionMode(section.items)}" id="${idPrefix}-${index}">
+    ${sections.length ? sections.map((section, index) => `<section class="sm-section is-${sectionMode(section.items)}" id="${idPrefix}-${index}"${ids && section.id ? ` data-id="${escape(section.id)}"` : ''}>
       <header class="sm-section-head"><h2>${escape(section.name)}</h2>${section.note ? `<p class="sm-note">${escape(section.note)}</p>` : ''}</header>
-      <div class="sm-items">${section.items.map((dish) => dishHTML(menu, dish)).join('')}</div>
+      <div class="sm-items">${section.items.map((dish) => dishHTML(menu, dish, ids)).join('')}</div>
     </section>`).join('') : '<p class="sm-empty">Your dishes will appear here.</p>'}
   </main>
   <footer class="sm-footer">

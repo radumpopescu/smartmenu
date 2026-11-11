@@ -94,6 +94,8 @@ body { margin: 0; }
 .sm-dish.is-off > :not(.sm-copy), .sm-dish.is-off .sm-copy > :not(.sm-off) { opacity: .45; }
 .sm-dish.is-off .sm-price { text-decoration: line-through; }
 
+.sm-changed { --changed: color-mix(in srgb, var(--accent) 16%, var(--bg)); border-radius: 4px; background: var(--changed); box-shadow: 0 0 0 7px var(--changed); }
+
 .sm-dish.can-open { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 
 .sm-footer { padding: 44px var(--pad) calc(48px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); text-align: center; }

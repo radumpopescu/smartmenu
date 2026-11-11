@@ -1,6 +1,8 @@
 import qrcode from 'qrcode-generator';
 import { RequestError, cleanDraft, draftPhotosIn, isId, makeDraft, photoMap, photosIn, publishedMenu, storedPublished, uid } from './menu.js';
-import { editPhoto, extractMenu } from './ai.js';
+import { editPhoto, extractMenu, imageProvider, lookOf, textProvider } from './ai.js';
+import { agentInput, askAgent } from './agent.js';
+import { getRevision, isAdmin, latestRevision, listRevisions, logEvent, revisionStatements, saveMeta, usageReport } from './records.js';
 import { designOf, escape, renderDocument } from '../public/guest/render.js';
 import { samples } from '../public/guest/samples.js';
 import baseCss from '../public/guest/base.css';
@@ -24,6 +26,7 @@ const query = (env, sql, ...params) => env.DB.prepare(sql).bind(...params);
 const templateCss = { osteria, carta, mercato, notte };
 const sampleAliases = new Map([['osteria-verde-example', 'demo-osteria']]);
 const publicCache = 'public, max-age=30, s-maxage=60';
+const jobLook = "COALESCE(look, CASE background WHEN 'transparent' THEN 'cutout' ELSE 'natural' END) AS look";
 const originOf = (env, url) => env.PUBLIC_ORIGIN ? new URL(env.PUBLIC_ORIGIN).origin : url.origin;
 const dimension = (value) => /^\d{1,9}$/.test(value ?? '') ? Math.min(10000, Math.max(1, Number(value))) : null;
 const pageHeaders = {
@@ -124,10 +127,12 @@ async function auth(request, env, action) {
     const inserted = await query(env, 'INSERT INTO accounts VALUES (?, ?, ?) ON CONFLICT(email) DO NOTHING', id, address, stored).run();
     if (!inserted.meta.changes) fail(409, 'An account already uses this email.');
     account = { id };
+    await logEvent(env, id, null, 'signup');
   } else {
     const [salt, hash] = account?.password.split(':') ?? ['0'.repeat(32), '0'.repeat(64)];
     const candidate = await passwordHash(password, salt);
     if (!account || !equalHex(candidate, hash)) fail(401, 'Email or password is incorrect.');
+    await logEvent(env, account.id, null, 'signin');
   }
   const token = random(32);
   await env.DB.batch([
@@ -169,7 +174,44 @@ async function view(env, row) {
   return { id: row.id, slug: row.slug, draft, version: row.version, publishedAt: row.published_at };
 }
 
-async function privateMenu(request, env, account, menu, action, detail) {
+async function revisionDraft(env, menuId, revision) {
+  const draft = cleanDraft(JSON.parse(revision.draft));
+  const rows = await photoRows(env, menuId, draftPhotosIn(draft));
+  const owned = new Set(rows.map((row) => row.id));
+  for (const dish of draft.sections.flatMap((section) => section.items)) {
+    if (dish.photo && !owned.has(dish.photo)) dish.photo = null;
+    if (dish.originalPhoto && !owned.has(dish.originalPhoto)) dish.originalPhoto = null;
+  }
+  return { draft, rows };
+}
+
+async function saveDraft(env, account, menu, draft, version, meta) {
+  const encoded = JSON.stringify(draft);
+  const ids = draftPhotosIn(draft);
+  const rows = await photoRows(env, menu.id, ids);
+  if (rows.length !== ids.length) fail(400, 'A photo does not belong to this menu.');
+  const publishing = meta.published;
+  if (publishing && !draft.sections.some((section) => section.items.length)) fail(400, 'Add a dish before publishing.');
+  if (publishing && draft.sections.some((section) => section.items.some((item) => item.review))) {
+    fail(400, 'Review the flagged dishes before publishing.');
+  }
+  const expected = version ?? 0;
+  const at = now();
+  const revisions = revisionStatements(env, menu.id, expected, await latestRevision(env, menu.id),
+    { ...meta, account, draft: encoded, at });
+  const statements = publishing ? [
+    query(env, `UPDATE menus SET draft = ?, published = ?, published_at = ?, version = version + 1
+      WHERE id = ? AND version = ?`, encoded, JSON.stringify(publishedMenu(draft, photoMap(rows))), at, menu.id, expected),
+    query(env, `UPDATE photos SET published = (id IN (SELECT value FROM json_each(?)))
+      WHERE menu_id = ? AND changes() = 1`, JSON.stringify(photosIn(draft)), menu.id)
+  ] : [query(env, 'UPDATE menus SET draft = ?, version = version + 1 WHERE id = ? AND version = ?', encoded, menu.id, expected)];
+  const results = await env.DB.batch([...revisions, ...statements]);
+  if (!results[revisions.length].meta.changes) fail(409, 'This menu changed in another tab. Reopen it before saving.');
+  if (publishing) await logEvent(env, account, menu.id, 'published', { source: meta.source });
+  return json(await view(env, await query(env, 'SELECT * FROM menus WHERE id = ?', menu.id).first()));
+}
+
+async function privateMenu(request, env, account, menu, action, detail, extra) {
   const method = request.method;
   if (!action && method === 'GET') return json(await view(env, menu));
   if (action === 'qr' && method === 'GET' && menu.published) {
@@ -184,26 +226,33 @@ async function privateMenu(request, env, account, menu, action, detail) {
 
   if ((!action && method === 'PUT') || (action === 'publish' && method === 'POST')) {
     const input = await body(request);
-    const draft = cleanDraft(input.draft);
-    const encoded = JSON.stringify(draft);
-    const ids = draftPhotosIn(draft);
-    const rows = await photoRows(env, menu.id, ids);
-    if (rows.length !== ids.length) fail(400, 'A photo does not belong to this menu.');
-    const publishing = action === 'publish';
-    if (publishing && !draft.sections.some((section) => section.items.length)) fail(400, 'Add a dish before publishing.');
-    if (publishing && draft.sections.some((section) => section.items.some((item) => item.review))) {
-      fail(400, 'Review the flagged dishes before publishing.');
+    return saveDraft(env, account, menu, cleanDraft(input.draft), input.version, { ...saveMeta(input), published: action === 'publish' });
+  }
+  if (action === 'revisions' && !detail && method === 'GET') return json(await listRevisions(env, menu.id));
+  if (action === 'revisions' && detail && ((method === 'GET' && !extra) || (method === 'POST' && extra === 'restore'))) {
+    const revision = isId(detail) && await getRevision(env, menu.id, detail);
+    if (!revision) fail(404, 'Version not found.');
+    const { draft, rows } = await revisionDraft(env, menu.id, revision);
+    if (method === 'GET') {
+      return json({
+        id: revision.id, createdAt: revision.created_at, source: revision.source, summary: revision.summary,
+        published: revision.published === 1, draft: { ...draft, photos: photoMap(rows) }
+      });
     }
-    const statements = publishing ? [
-      query(env, `UPDATE menus SET draft = ?, published = ?, published_at = ?, version = version + 1
-        WHERE id = ? AND version = ?`, encoded, JSON.stringify(publishedMenu(draft, photoMap(rows))), now(), menu.id, input.version ?? 0),
-      query(env, `UPDATE photos SET published = (id IN (SELECT value FROM json_each(?)))
-        WHERE menu_id = ? AND changes() = 1`, JSON.stringify(photosIn(draft)), menu.id)
-    ] : [query(env, 'UPDATE menus SET draft = ?, version = version + 1 WHERE id = ? AND version = ?',
-      encoded, menu.id, input.version ?? 0)];
-    const [result] = await env.DB.batch(statements);
-    if (!result.meta.changes) fail(409, 'This menu changed in another tab. Reopen it before saving.');
-    return json(await view(env, await query(env, 'SELECT * FROM menus WHERE id = ?', menu.id).first()));
+    const { version } = await body(request);
+    const saved = await saveDraft(env, account, menu, draft, version, { source: 'restore', summary: '', published: false, restoredFrom: revision.id });
+    await logEvent(env, account, menu.id, 'restored', { revision: revision.id });
+    return saved;
+  }
+  if (action === 'agent' && method === 'POST') {
+    const input = await body(request);
+    const ask = agentInput(input);
+    const draft = cleanDraft(input.draft);
+    if (!textProvider(env)) fail(503, 'The assistant needs an xAI or OpenAI API key on the server.');
+    await useQuota(env, account, 'agent', 200);
+    const result = await askAgent(env, { account, menu: menu.id }, draft, ask);
+    await logEvent(env, account, menu.id, 'assistant_asked', { length: ask.message.length, ops: result.ops.length });
+    return json(result);
   }
 
   if (action === 'photos' && method === 'POST') {
@@ -211,23 +260,33 @@ async function privateMenu(request, env, account, menu, action, detail) {
     await useQuota(env, account, 'upload', 150);
     const params = new URL(request.url).searchParams;
     const size = { width: dimension(params.get('w')), height: dimension(params.get('h')) };
-    return json({ id: await savePhoto(env, menu.id, file.stream(), file.type, size) }, 201);
+    const id = await savePhoto(env, menu.id, file.stream(), file.type, size);
+    await logEvent(env, account, menu.id, 'photo_uploaded', { photo: id });
+    return json({ id }, 201);
   }
   if (action === 'import' && method === 'POST') {
-    if (!env.OPENAI_API_KEY) fail(503, 'Menu import needs an OpenAI API key on the server.');
+    if (!textProvider(env)) fail(503, 'Menu import needs an xAI or OpenAI API key on the server.');
     const file = await imageFile(request);
     await useQuota(env, account, 'import', 30);
-    return json({ sections: await extractMenu(env, file) });
+    const sections = await extractMenu(env, file, { account, menu: menu.id });
+    await logEvent(env, account, menu.id, 'menu_imported', { sections: sections.length, dishes: sections.reduce((total, section) => total + section.items.length, 0) });
+    return json({ sections });
   }
   if (action === 'edits' && !detail && method === 'POST') {
-    if (!env.OPENAI_API_KEY) fail(503, 'Photo editing needs an OpenAI API key on the server.');
-    const { source, background } = await body(request);
-    if (!isId(source) || !['studio', 'transparent'].includes(background)) fail(400, 'Choose a valid photo and background.');
-    if (!await query(env, 'SELECT id FROM photos WHERE id = ? AND menu_id = ?', source, menu.id).first()) fail(404, 'Photo not found.');
+    const provider = imageProvider(env);
+    if (!provider) fail(503, 'Photo editing needs an image API key on the server.');
+    const input = await body(request);
+    const look = lookOf(input.look ?? input.background);
+    if (!isId(input.source) || !look) fail(400, 'Choose a valid photo and look.');
+    if (!provider.looks.includes(look)) fail(400, 'This image model cannot cut out the background. Choose another look.');
+    const photo = await query(env, 'SELECT id, mime FROM photos WHERE id = ? AND menu_id = ?', input.source, menu.id).first();
+    if (!photo) fail(404, 'Photo not found.');
+    if (!provider.images.includes(photo.mime)) fail(415, 'This image model needs a JPEG or PNG photo.');
     await useQuota(env, account, 'edit', 25);
     const id = uid();
-    await query(env, 'INSERT INTO photo_jobs (id, menu_id, source_id, background, updated_at) VALUES (?, ?, ?, ?, ?)',
-      id, menu.id, source, background, now()).run();
+    await query(env, 'INSERT INTO photo_jobs (id, menu_id, source_id, background, look, account_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      id, menu.id, photo.id, look, look, account, now()).run();
+    await logEvent(env, account, menu.id, 'photo_edit_requested', { job: id, look, provider: provider.name });
     try { await env.PHOTO_JOBS.send({ id }); }
     catch (error) {
       await query(env, "UPDATE photo_jobs SET status = 'failed' WHERE id = ?", id).run();
@@ -237,13 +296,13 @@ async function privateMenu(request, env, account, menu, action, detail) {
   }
   if (action === 'edits' && method === 'GET') {
     if (detail) {
-      const job = await query(env, "SELECT id, CASE WHEN status IN ('processing', 'queued') AND updated_at < unixepoch() * 1000 - 900000 THEN 'failed' ELSE status END AS status, result_id FROM photo_jobs WHERE id = ? AND menu_id = ?", detail, menu.id).first();
+      const job = await query(env, `SELECT id, CASE WHEN status IN ('processing', 'queued') AND updated_at < unixepoch() * 1000 - 900000 THEN 'failed' ELSE status END AS status, result_id, ${jobLook} FROM photo_jobs WHERE id = ? AND menu_id = ?`, detail, menu.id).first();
       if (!job) fail(404, 'Photo edit not found.');
       return json(job);
     }
     const source = new URL(request.url).searchParams.get('source');
     if (!isId(source)) fail(400, 'Choose a photo.');
-    const { results } = await query(env, `SELECT id, CASE WHEN status IN ('processing', 'queued') AND updated_at < unixepoch() * 1000 - 900000 THEN 'failed' ELSE status END AS status, result_id FROM photo_jobs
+    const { results } = await query(env, `SELECT id, CASE WHEN status IN ('processing', 'queued') AND updated_at < unixepoch() * 1000 - 900000 THEN 'failed' ELSE status END AS status, result_id, ${jobLook} FROM photo_jobs
       WHERE menu_id = ? AND source_id = ? ORDER BY updated_at DESC LIMIT 1`, menu.id, source).all();
     return json(results[0] ?? null);
   }
@@ -252,7 +311,7 @@ async function privateMenu(request, env, account, menu, action, detail) {
 
 async function api(request, env, url) {
   const method = request.method;
-  const [, , resource, id, action, detail] = url.pathname.split('/');
+  const [, , resource, id, action, detail, extra] = url.pathname.split('/');
   if (method !== 'GET' && request.headers.get('Origin') !== url.origin) fail(403, 'Request origin is invalid.');
   if (method === 'POST' && resource === 'auth' && ['register', 'login'].includes(id)) return auth(request, env, id);
   if (resource === 'auth' && id === 'logout' && method === 'POST') {
@@ -280,6 +339,11 @@ async function api(request, env, url) {
   const account = await identity(request, env);
   if (!account) fail(401, 'Sign in to continue.');
   if (resource === 'session' && method === 'GET') return json({ signedIn: true });
+  if (resource === 'admin' && id === 'usage' && !action && method === 'GET') {
+    const { email } = await query(env, 'SELECT email FROM accounts WHERE id = ?', account.id).first();
+    if (!isAdmin(env, email)) fail(404, 'Page not found.');
+    return json(await usageReport(env, url.searchParams.get('days')));
+  }
   if (resource === 'menus' && !id && method === 'GET') {
     const { results } = await query(env, `SELECT id, slug, json_extract(draft, '$.name') AS name, published_at
       FROM menus WHERE owner_id = ? ORDER BY rowid DESC`, account.id).all();
@@ -293,12 +357,13 @@ async function api(request, env, url) {
     const slug = (label || 'menu') + '-' + menuId.slice(0, 12);
     await query(env, 'INSERT INTO menus (id, owner_id, slug, draft) VALUES (?, ?, ?, ?)',
       menuId, account.id, slug, JSON.stringify(makeDraft(name.trim()))).run();
+    await logEvent(env, account.id, menuId, 'menu_created');
     return json(await view(env, await query(env, 'SELECT * FROM menus WHERE id = ?', menuId).first()), 201);
   }
   if (resource === 'menus' && isId(id)) {
     const menu = await query(env, 'SELECT * FROM menus WHERE id = ? AND owner_id = ?', id, account.id).first();
     if (!menu) fail(404, 'Menu not found.');
-    return privateMenu(request, env, account.id, menu, action, detail);
+    return privateMenu(request, env, account.id, menu, action, detail, extra);
   }
   fail(404, 'Page not found.');
 }
@@ -383,21 +448,27 @@ export default {
         else message.ack();
         continue;
       }
+      const account = job.account_id ?? (await query(env, 'SELECT owner_id FROM menus WHERE id = ?', job.menu_id).first())?.owner_id;
       try {
         const source = await env.PHOTOS.get(job.source_id);
         if (!source) throw new Error('Original image is missing');
-        const data = await editPhoto(env, source, source.httpMetadata.contentType, job.background);
-        const photo = await savePhoto(env, job.menu_id, data, 'image/webp',
-          { width: 1024, height: 1024, cutout: job.background === 'transparent' });
+        const look = job.look ?? lookOf(job.background);
+        const result = await editPhoto(env, { account, menu: job.menu_id }, source, source.httpMetadata.contentType, look);
+        const photo = await savePhoto(env, job.menu_id, result.data, result.mime,
+          { width: result.width, height: result.height, cutout: look === 'cutout' });
         await query(env, "UPDATE photo_jobs SET status = 'ready', result_id = ?, updated_at = ? WHERE id = ? AND updated_at = ?",
           photo, now(), job.id, lease).run();
+        await logEvent(env, account, job.menu_id, 'photo_edit_finished', { job: job.id, look, status: 'ready', photo });
         message.ack();
       } catch (error) {
         console.error('Photo job failed', id, error.message);
         const status = message.attempts >= 3 ? 'failed' : 'queued';
         await query(env, 'UPDATE photo_jobs SET status = ?, updated_at = ? WHERE id = ? AND updated_at = ?', status, now(), job.id, lease).run();
         if (status === 'queued') message.retry({ delaySeconds: 30 });
-        else message.ack();
+        else {
+          await logEvent(env, account, job.menu_id, 'photo_edit_finished', { job: job.id, status: 'failed' });
+          message.ack();
+        }
       }
     }
   }

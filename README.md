@@ -8,6 +8,8 @@ SmartMenu is a Cloudflare Workers app for creating and publishing restaurant men
 - [Finding the first restaurant customers](docs/restaurant-sales.md)
 - [Implementation and deployment status](docs/implementation.md)
 - [Build plan for templates and the guest menu](docs/plan.md)
+- [Build plan for the studio, the assistant and production records](docs/plan-studio.md)
+- [Operations: usage, costs and menu history queries](docs/operations.md)
 
 ## Run locally
 
@@ -18,21 +20,47 @@ npm run db:local
 npm run dev
 ```
 
+The dev server listens on all interfaces, so a phone on the same Wi-Fi can open `http://<your-computer's-IP>:8787`, which is handy for scanning the guest menu on a real phone.
+
 Open [the local studio](http://localhost:8787) and create an account with the signup code in `.dev.vars`. Four demo menus, one per template, are available without signing in: [Osteria](http://localhost:8787/m/demo-osteria), [Carta](http://localhost:8787/m/demo-carta), [Mercato](http://localhost:8787/m/demo-mercato) and [Notte](http://localhost:8787/m/demo-notte). The old `/m/osteria-verde-example` link shows the Osteria demo.
 
 `npm run db:local` applies every migration in `migrations/`. Run it again after pulling a new migration.
 
-Set `OPENAI_API_KEY` in `.dev.vars` to enable menu extraction and photo edits. The manual editor, original photo uploads, publishing, and QR codes work without the key. Menu extraction handles one page at a time and merges sections with the same name. Review text and prices before publishing. Photo edits run in a queue and can use a neutral tabletop or a transparent background. Compare the original and edited images before selecting one.
+The manual editor, original photo uploads, publishing, history and QR codes work without any AI key. The AI features read these settings:
+
+| Setting | Kind | Purpose |
+| --- | --- | --- |
+| `XAI_API_KEY` | secret | Sends the assistant and menu import to xAI (Grok). Takes precedence over OpenAI for text. |
+| `OPENAI_API_KEY` | secret | Used for the assistant and import when `XAI_API_KEY` is not set, and for photo edits by default. |
+| `XAI_MODEL`, `XAI_VISION_MODEL` | var | Grok models for the assistant and for reading menu photos. |
+| `OPENAI_MODEL`, `VISION_MODEL`, `OPENAI_REASONING` | var | OpenAI models for the assistant and import, and their reasoning effort (empty to omit it). |
+| `IMAGE_PROVIDER` | var | `openai` (default) or `xai` for photo edits. |
+| `IMAGE_MODEL`, `XAI_IMAGE_MODEL` | var | The image model for each photo provider. |
+| `XAI_BASE_URL` | var | Overrides `https://api.x.ai/v1`, for example to point at the local mock. |
+| `ADMIN_EMAILS` | var | Comma-separated emails allowed to read `GET /api/admin/usage`. Empty means nobody. |
+
+Without either key the assistant and import return 503. Menu import handles one page at a time and merges sections with the same name. Grok reads JPEG and PNG pages only, so a WebP page goes to OpenAI when its key is set. Photo edits run in a queue with one of four looks: natural, bright, moody or cut-out. Grok's image model cannot return a transparent image, so the cut-out look is refused when `IMAGE_PROVIDER` is `xai`. Compare the original and edited images before selecting one.
+
+### Running against the mock xAI API
+
+`scripts/mock-xai.mjs` is a dependency-free imitation of the two xAI endpoints the Worker calls. It answers a few assistant commands (a price change on a named dish or a percentage on a section, "add a dish … to … for …", "remove …", "translate"/"rewrite descriptions", "switch to notte"), returns a fixed two-section page for imports, echoes the photo back for edits, and reports plausible token usage. A message containing "mock error" returns HTTP 500. In two terminals:
+
+```sh
+npm run mock:xai
+npm run dev:mock
+```
+
+`dev:mock` is `wrangler dev --var XAI_API_KEY:mock --var XAI_BASE_URL:http://localhost:8789/v1 --var IMAGE_PROVIDER:xai`. Add `--port` or `--var ADMIN_EMAILS:you@example.com` as needed. The `--var` flags override `.dev.vars`, so a real key there is not used.
 
 ## Deploy to Cloudflare
 
 1. Run `npx wrangler login` and select the Cloudflare account you want to use. Enable R2 on that account.
 2. Create the D1 database with `npx wrangler d1 create smartmenu`. Add the returned `database_id` to the `DB` entry in `wrangler.jsonc`. Create the bucket with `npx wrangler r2 bucket create smartmenu-photos` and the queue with `npx wrangler queues create smartmenu-photo-jobs`. Use your chosen names in the config if these names are taken.
 3. Run `npx wrangler d1 migrations apply DB --remote` and `npm run deploy`.
-4. Run `npx wrangler secret put SIGNUP_CODE` with a strong private signup code. Run `npx wrangler secret put OPENAI_API_KEY` with the AI project's key. Accounts can be created only when the signup code is set and supplied. Existing accounts can sign in when signup is closed.
+4. Run `npx wrangler secret put SIGNUP_CODE` with a strong private signup code. Run `npx wrangler secret put XAI_API_KEY` and `npx wrangler secret put OPENAI_API_KEY` with the AI projects' keys. Set `ADMIN_EMAILS` in `wrangler.jsonc` to read the usage report. Accounts can be created only when the signup code is set and supplied. Existing accounts can sign in when signup is closed.
 5. Set `PUBLIC_ORIGIN` in the `vars` of `wrangler.jsonc` to the guest hostname, for example `https://menu.example.com`, before distributing QR codes. QR codes and canonical links use it. When it is empty, they use the hostname of the request, so a code downloaded from a preview or `workers.dev` hostname would point there. Republishing preserves the menu’s slug.
 
-Use separate bindings and secrets for staging and production. Account-level daily quotas apply to uploads, menu extraction, and photo edits. The Worker uses a Cloudflare rate-limit binding for signup and sign-in. D1 holds accounts, sessions, drafts, published snapshots and job status. R2 is private, with the Worker serving only currently published images to guests. The Worker renders the guest page at `/m/:slug` as one HTML response with the template's CSS inline, and caches it, guest menu data and public images at the edge. Published changes can take up to a minute to appear at every edge location. The queue limits concurrent image edits and retries failed jobs. Menu updates use a version check to prevent an older browser tab from overwriting a newer draft.
+Use separate bindings and secrets for staging and production. Account-level daily quotas apply to uploads, menu extraction, photo edits and assistant requests. The Worker uses a Cloudflare rate-limit binding for signup and sign-in. D1 holds accounts, sessions, drafts, published snapshots and job status. R2 is private, with the Worker serving only currently published images to guests. The Worker renders the guest page at `/m/:slug` as one HTML response with the template's CSS inline, and caches it, guest menu data and public images at the edge. Published changes can take up to a minute to appear at every edge location. The queue limits concurrent image edits and retries failed jobs. Menu updates use a version check to prevent an older browser tab from overwriting a newer draft.
 
 Current scope is a single owner account per menu. Staff invitations, password recovery, billing, storage lifecycle cleanup, and measured capacity limits are future work.
 

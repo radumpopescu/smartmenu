@@ -3,9 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --ip 0.0.0.0",
+    "dev:mock": "wrangler dev --var XAI_API_KEY:mock --var XAI_BASE_URL:http://localhost:8789/v1 --var IMAGE_PROVIDER:xai",
+    "mock:xai": "node scripts/mock-xai.mjs",
     "db:local": "wrangler d1 migrations apply DB --local",
-    "check": "for file in src/*.js public/*.js public/guest/*.js; do node --check \"$file\" || exit 1; done && node --test test/*.test.js",
+    "check": "for file in src/*.js public/*.js public/guest/*.js public/studio/*.js scripts/*.mjs; do node --check \"$file\" || exit 1; done && node --test test/*.test.js",
     "deploy": "wrangler deploy"
   },
   "dependencies": { "qrcode-generator": "2.0.4" },
