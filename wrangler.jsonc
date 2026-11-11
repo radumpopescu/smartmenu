@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "smartmenu",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-11-11",
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  "d1_databases": [{ "binding": "DB", "database_name": "smartmenu" }],
+  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "smartmenu-photos" }],
+  "queues": {
+    "producers": [{ "binding": "PHOTO_JOBS", "queue": "smartmenu-photo-jobs" }],
+    "consumers": [{ "queue": "smartmenu-photo-jobs", "max_batch_size": 1, "max_retries": 2, "max_concurrency": 4 }]
+  },
+  "ratelimits": [
+    { "name": "AUTH_LIMIT", "namespace_id": "101", "simple": { "limit": 8, "period": 60 } }
+  ],
+  "vars": { "VISION_MODEL": "gpt-4.1-mini", "IMAGE_MODEL": "gpt-image-1.5" },
+  "observability": { "enabled": true }
+}

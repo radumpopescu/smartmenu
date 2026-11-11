@@ -1,0 +1,13 @@
+{
+  "name": "smartmenu",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "db:local": "wrangler d1 migrations apply DB --local",
+    "check": "node --check src/worker.js && node --check src/menu.js && node --check src/ai.js && node --check public/app.js && node --check public/menu-view.js",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": { "qrcode-generator": "2.0.4" },
+  "devDependencies": { "wrangler": "^4.0.0" }
+}
