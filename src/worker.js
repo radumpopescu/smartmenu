@@ -37,10 +37,11 @@ const pageHeaders = {
     "font-src https://fonts.gstatic.com; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 };
 
+// Workers rejects PBKDF2 above 100000 iterations, and only in production.
 async function passwordHash(password, salt) {
   const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
   const digest = await crypto.subtle.deriveBits({
-    name: 'PBKDF2', salt: encoder.encode(salt), iterations: 600000, hash: 'SHA-256'
+    name: 'PBKDF2', salt: encoder.encode(salt), iterations: 100000, hash: 'SHA-256'
   }, key, 256);
   return hex(new Uint8Array(digest));
 }
