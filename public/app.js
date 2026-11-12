@@ -427,13 +427,14 @@ function hasAlpha(context, width, height) {
   return false;
 }
 
-async function prepareImage(file, max) {
+// A menu page is always sent as JPEG or PNG: Grok cannot read WebP, and a page needs no transparency.
+async function prepareImage(file, max, page = false) {
   let bitmap;
   try { bitmap = await createImageBitmap(file); } catch { throw new Error('Choose a JPEG, PNG, or WebP photo.'); }
   const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
   const width = Math.max(1, Math.round(bitmap.width * scale));
   const height = Math.max(1, Math.round(bitmap.height * scale));
-  if (scale === 1 && file.size <= 700 * 1024 && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+  if (scale === 1 && file.size <= 700 * 1024 && ['image/jpeg', 'image/png', ...(page ? [] : ['image/webp'])].includes(file.type)) {
     bitmap.close();
     return { blob: file, width, height };
   }
@@ -441,10 +442,14 @@ async function prepareImage(file, max) {
   canvas.width = width;
   canvas.height = height;
   const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (page) {
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, width, height);
+  }
   context.drawImage(bitmap, 0, 0, width, height);
   bitmap.close();
-  const alpha = ['image/png', 'image/webp'].includes(file.type) && hasAlpha(context, width, height);
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, alpha ? 'image/webp' : 'image/jpeg', alpha ? 0.9 : 0.85));
+  const alpha = !page && ['image/png', 'image/webp'].includes(file.type) && hasAlpha(context, width, height);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, alpha ? 'image/webp' : 'image/jpeg', alpha || page ? 0.9 : 0.85));
   if (!blob) throw new Error('This photo could not be prepared. Try another one.');
   return { blob, width, height };
 }
@@ -468,7 +473,7 @@ dialog.addEventListener('submit', async (event) => {
       location.href = '/studio?id=' + menu.id;
     } else if (action === 'import') {
       submit.textContent = 'Reading menu…';
-      const { blob } = await prepareImage(data.file, 2000);
+      const { blob } = await prepareImage(data.file, 2000, true);
       const { sections } = await api('menus/' + S.state.id + '/import', 'POST', blob);
       if (!form.isConnected) return;
       if (!sections.length) throw new Error('No dishes found. Try a sharper photo.');
