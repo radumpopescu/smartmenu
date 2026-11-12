@@ -2,7 +2,7 @@ import { TAGS, TAG_LABELS, designOf, escape as e, photoURL, templates } from '/g
 import { S, api, app, dialog, findDish, load, runToastAction, showDialog, tell, withDefaults } from '/studio/core.js';
 import { deviceHTML, deviceToggle, mountDevice, sendPreview, setDevice } from '/studio/preview.js';
 import { edited, flush, problem, renderStatus, resetSaves, showBlocker, unsaved } from '/studio/save.js';
-import { applyProposal, assistantHTML, discardProposal, dismissAnswer, ask, fit, renderAssistant, setView, toggleMic } from '/studio/assistant.js';
+import { applyProposal, assistantHTML, discardProposal, dismissAnswer, ask, endVoice, fit, renderAssistant, setView, toggleMic } from '/studio/assistant.js';
 import { historyHTML, leaveRevision, loadHistory, resetHistory, restoreRevision, viewRevision } from '/studio/history.js';
 import { openPhotoEditor, requestEdit, sourcePhoto } from '/studio/photos.js';
 
@@ -12,7 +12,8 @@ let demo = 'demo-osteria';
 let fontsLoaded = false;
 
 function top(right = '') {
-  return `<header class="top"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true">S</span>SmartMenu</a><div class="actions">${right}</div></header>`;
+  const admin = S.session?.admin && route !== '/admin' ? '<a class="btn quiet" href="/admin">Admin</a>' : '';
+  return `<header class="top"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true">S</span>SmartMenu</a><div class="actions">${admin}${right}</div></header>`;
 }
 
 function auth(mode) {
@@ -344,6 +345,7 @@ document.addEventListener('click', async (event) => {
     if (action === 'share') { share(); return; }
     if (action === 'example') { const input = document.querySelector('#ask'); input.value = target.textContent; fit(); await ask(input.value); return; }
     if (action === 'mic') { toggleMic(); return; }
+    if (action === 'voice-end') { endVoice(); document.querySelector('[data-do="mic"]')?.focus(); return; }
     if (action === 'apply-proposal') { await applyProposal(); return; }
     if (action === 'discard-proposal') { discardProposal(); return; }
     if (action === 'dismiss-answer') { dismissAnswer(); return; }
@@ -513,9 +515,24 @@ window.addEventListener('beforeunload', (event) => {
   if (S.state && unsaved()) { event.preventDefault(); event.returnValue = ''; }
 });
 
+async function adminPage() {
+  if (!S.session?.admin) {
+    app.innerHTML = top() + '<main class="page-error"><h1>Not available</h1><p>This page is only for SmartMenu administrators.</p><a href="/">Back to SmartMenu</a></main>';
+    return;
+  }
+  app.innerHTML = top('<a class="btn" href="/">Your menus</a>') + '<main class="admin" id="admin"></main>';
+  const { mountAdmin } = await import('/studio/admin.js');
+  mountAdmin(document.querySelector('#admin'));
+}
+
 async function start() {
   try {
-    if (route === '/studio') {
+    S.session = await api('session').catch((error) => {
+      if (error.status === 401 && route !== '/admin') throw error;
+      return { signedIn: error.status !== 401 };
+    });
+    if (route === '/admin') await adminPage();
+    else if (route === '/studio') {
       const id = new URLSearchParams(location.search).get('id');
       if (!id) { await dashboard(); return; }
       load(await api('menus/' + encodeURIComponent(id)));

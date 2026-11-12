@@ -1,4 +1,5 @@
 import { RequestError, uid } from './menu.js';
+import { costMicros } from './models.js';
 
 export const SOURCES = ['manual', 'agent', 'import'];
 export const collapseWindow = 10 * 60 * 1000;
@@ -54,26 +55,39 @@ export async function logEvent(env, account, menu, type, detail = {}) {
 }
 
 const count = (value) => Number.isInteger(value) ? value : null;
+export const maxRecord = 16000;
 
 export function tokensOf(usage) {
-  if (!usage) return { input: null, output: null, cached: null, reasoning: null };
+  if (!usage) return { input: null, output: null, cached: null, reasoning: null, audioInput: null, audioOutput: null };
   return {
     input: count(usage.input_tokens ?? usage.prompt_tokens),
     output: count(usage.output_tokens ?? usage.completion_tokens),
-    cached: count((usage.input_tokens_details ?? usage.prompt_tokens_details)?.cached_tokens),
-    reasoning: count((usage.output_tokens_details ?? usage.completion_tokens_details)?.reasoning_tokens)
+    cached: count((usage.input_tokens_details ?? usage.prompt_tokens_details ?? usage.input_token_details)?.cached_tokens),
+    reasoning: count((usage.output_tokens_details ?? usage.completion_tokens_details)?.reasoning_tokens),
+    audioInput: count(usage.input_token_details?.audio_tokens),
+    audioOutput: count(usage.output_token_details?.audio_tokens)
   };
+}
+
+export function clip(value) {
+  if (value === null || value === undefined) return null;
+  const text = (typeof value === 'string' ? value : JSON.stringify(value))
+    .replace(/data:[\w.+-]+\/[\w.+-]+;base64,[A-Za-z0-9+/=]*/g, '[image]');
+  return text.length > maxRecord ? text.slice(0, maxRecord - 1) + '…' : text;
 }
 
 export async function logCall(env, meta, call) {
   const tokens = tokensOf(call.usage);
   try {
     await query(env, `INSERT INTO ai_calls (created_at, account_id, menu_id, feature, provider, model, status,
-      input_tokens, output_tokens, cached_tokens, reasoning_tokens, usage, duration_ms, error)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      input_tokens, output_tokens, cached_tokens, reasoning_tokens, usage, duration_ms, error,
+      cost_micros, audio_input_tokens, audio_output_tokens, request, response, call_ref)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       Date.now(), meta.account ?? null, meta.menu ?? null, meta.feature, call.provider, call.model, call.status,
       tokens.input, tokens.output, tokens.cached, tokens.reasoning, call.usage ? JSON.stringify(call.usage) : null,
-      call.duration, call.error ? String(call.error).slice(0, 300) : null).run();
+      call.duration, call.error ? String(call.error).slice(0, 300) : null,
+      costMicros(call.provider, call.model, call.usage), tokens.audioInput, tokens.audioOutput,
+      clip(call.request), clip(call.response), meta.callRef ?? null).run();
   } catch (error) {
     console.error('AI call record failed', meta.feature, error.message);
   }
@@ -81,18 +95,3 @@ export async function logCall(env, meta, call) {
 
 export const isAdmin = (env, email) => (env.ADMIN_EMAILS ?? '').split(',')
   .map((entry) => entry.trim().toLowerCase()).filter(Boolean).includes(email);
-
-export async function usageReport(env, value) {
-  const days = /^\d{1,3}$/.test(value ?? '') ? Math.min(366, Math.max(1, Number(value))) : 30;
-  const since = Date.now() - days * 86400000;
-  const { results } = await query(env, `SELECT ai_calls.account_id AS accountId, accounts.email, feature, provider, model,
-      COUNT(*) AS calls, SUM(status != 'ok') AS failed,
-      COALESCE(SUM(input_tokens), 0) AS inputTokens, COALESCE(SUM(output_tokens), 0) AS outputTokens,
-      COALESCE(SUM(cached_tokens), 0) AS cachedTokens, COALESCE(SUM(reasoning_tokens), 0) AS reasoningTokens,
-      SUM(duration_ms) AS durationMs
-    FROM ai_calls LEFT JOIN accounts ON accounts.id = ai_calls.account_id
-    WHERE ai_calls.created_at >= ?
-    GROUP BY ai_calls.account_id, feature, provider, model
-    ORDER BY inputTokens + outputTokens DESC`, since).all();
-  return { days, since, rows: results };
-}

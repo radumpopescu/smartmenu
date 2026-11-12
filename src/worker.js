@@ -1,8 +1,11 @@
 import qrcode from 'qrcode-generator';
 import { RequestError, cleanDraft, draftPhotosIn, isId, makeDraft, photoMap, photosIn, publishedMenu, storedPublished, uid } from './menu.js';
-import { editPhoto, extractMenu, imageProvider, lookOf, textProvider } from './ai.js';
+import { connect, editPhoto, extractMenu, lookOf } from './ai.js';
 import { agentInput, askAgent } from './agent.js';
-import { getRevision, isAdmin, latestRevision, listRevisions, logEvent, revisionStatements, saveMeta, usageReport } from './records.js';
+import { getRevision, isAdmin, latestRevision, listRevisions, logEvent, revisionStatements, saveMeta } from './records.js';
+import { choose, loadSettings, selected } from './settings.js';
+import { adminApi } from './admin.js';
+import { maxOffer, recordVoiceUsage, sdpOffer, startVoice, voiceEnabled } from './voice.js';
 import { designOf, escape, renderDocument } from '../public/guest/render.js';
 import { samples } from '../public/guest/samples.js';
 import baseCss from '../public/guest/base.css';
@@ -143,6 +146,8 @@ async function auth(request, env, action) {
   return json({ signedIn: true }, 200, { 'Set-Cookie': cookie(request, token, days) });
 }
 
+const provider = async (env, feature) => connect(env, selected(env, await loadSettings(env), feature));
+
 async function savePhoto(env, menuId, data, mime, { width = null, height = null, cutout = false } = {}) {
   const id = uid();
   await env.PHOTOS.put(id, data, { httpMetadata: { contentType: mime } });
@@ -249,11 +254,21 @@ async function privateMenu(request, env, account, menu, action, detail, extra) {
     const input = await body(request);
     const ask = agentInput(input);
     const draft = cleanDraft(input.draft);
-    if (!textProvider(env)) fail(503, 'The assistant needs an xAI or OpenAI API key on the server.');
+    const model = await provider(env, 'assistant');
     await useQuota(env, account, 'agent', 200);
-    const result = await askAgent(env, { account, menu: menu.id }, draft, ask);
-    await logEvent(env, account, menu.id, 'assistant_asked', { length: ask.message.length, ops: result.ops.length });
+    const result = await askAgent(env, { account, menu: menu.id }, model, draft, ask);
+    await logEvent(env, account, menu.id, 'assistant_asked', { length: ask.message.length, ops: result.ops.length, model: model.model });
     return json(result);
+  }
+  if (action === 'voice' && !detail && method === 'POST') {
+    if (env.VOICE === 'off') fail(503, 'Voice is switched off on this server.');
+    const model = await provider(env, 'voice');
+    const offer = sdpOffer(request.headers.get('Content-Type'), await (await readBounded(request, maxOffer)).text());
+    await useQuota(env, account, 'voice', 40);
+    return startVoice(env, { account, menu: menu.id }, model, offer);
+  }
+  if (action === 'voice' && detail === 'usage' && method === 'POST') {
+    return json(await recordVoiceUsage(env, { account, menu: menu.id }, await body(request)));
   }
 
   if (action === 'photos' && method === 'POST') {
@@ -266,28 +281,28 @@ async function privateMenu(request, env, account, menu, action, detail, extra) {
     return json({ id }, 201);
   }
   if (action === 'import' && method === 'POST') {
-    if (!textProvider(env)) fail(503, 'Menu import needs an xAI or OpenAI API key on the server.');
+    const model = await provider(env, 'import');
     const file = await imageFile(request);
+    if (!model.images.includes(file.type)) fail(415, 'Use a JPEG or PNG photo of the menu page.');
     await useQuota(env, account, 'import', 30);
-    const sections = await extractMenu(env, file, { account, menu: menu.id });
+    const sections = await extractMenu(env, file, { account, menu: menu.id }, model);
     await logEvent(env, account, menu.id, 'menu_imported', { sections: sections.length, dishes: sections.reduce((total, section) => total + section.items.length, 0) });
     return json({ sections });
   }
   if (action === 'edits' && !detail && method === 'POST') {
-    const provider = imageProvider(env);
-    if (!provider) fail(503, 'Photo editing needs an image API key on the server.');
+    const model = await provider(env, 'photo');
     const input = await body(request);
     const look = lookOf(input.look ?? input.background);
     if (!isId(input.source) || !look) fail(400, 'Choose a valid photo and look.');
-    if (!provider.looks.includes(look)) fail(400, 'This image model cannot cut out the background. Choose another look.');
+    if (!model.looks.includes(look)) fail(400, 'This image model cannot cut out the background. Choose another look.');
     const photo = await query(env, 'SELECT id, mime FROM photos WHERE id = ? AND menu_id = ?', input.source, menu.id).first();
     if (!photo) fail(404, 'Photo not found.');
-    if (!provider.images.includes(photo.mime)) fail(415, 'This image model needs a JPEG or PNG photo.');
+    if (!model.images.includes(photo.mime)) fail(415, 'This image model needs a JPEG or PNG photo.');
     await useQuota(env, account, 'edit', 25);
     const id = uid();
-    await query(env, 'INSERT INTO photo_jobs (id, menu_id, source_id, background, look, account_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      id, menu.id, photo.id, look, look, account, now()).run();
-    await logEvent(env, account, menu.id, 'photo_edit_requested', { job: id, look, provider: provider.name });
+    await query(env, 'INSERT INTO photo_jobs (id, menu_id, source_id, background, look, account_id, provider, model, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      id, menu.id, photo.id, look, look, account, model.name, model.model, now()).run();
+    await logEvent(env, account, menu.id, 'photo_edit_requested', { job: id, look, provider: model.name, model: model.model });
     try { await env.PHOTO_JOBS.send({ id }); }
     catch (error) {
       await query(env, "UPDATE photo_jobs SET status = 'failed' WHERE id = ?", id).run();
@@ -339,11 +354,11 @@ async function api(request, env, url) {
 
   const account = await identity(request, env);
   if (!account) fail(401, 'Sign in to continue.');
-  if (resource === 'session' && method === 'GET') return json({ signedIn: true });
-  if (resource === 'admin' && id === 'usage' && !action && method === 'GET') {
-    const { email } = await query(env, 'SELECT email FROM accounts WHERE id = ?', account.id).first();
-    if (!isAdmin(env, email)) fail(404, 'Page not found.');
-    return json(await usageReport(env, url.searchParams.get('days')));
+  const admin = async () => isAdmin(env, (await query(env, 'SELECT email FROM accounts WHERE id = ?', account.id).first())?.email);
+  if (resource === 'session' && method === 'GET') return json({ signedIn: true, admin: await admin(), voice: voiceEnabled(env) });
+  if (resource === 'admin') {
+    if (!id || action || !(await admin())) fail(404, 'Page not found.');
+    return json(await adminApi(env, account.id, request, url, id, () => body(request)));
   }
   if (resource === 'menus' && !id && method === 'GET') {
     const { results } = await query(env, `SELECT id, slug, json_extract(draft, '$.name') AS name, published_at
@@ -433,7 +448,7 @@ export default {
         return page(notice('Something went wrong', 'The menu could not be loaded. Try again in a moment.'), 500, 'no-store');
       }
     }
-    if (request.method === 'GET' && /^\/studio\/?$/.test(url.pathname)) return env.ASSETS.fetch(new URL('/', url));
+    if (request.method === 'GET' && /^\/(?:studio|admin)\/?$/.test(url.pathname)) return env.ASSETS.fetch(new URL('/', url));
     return env.ASSETS.fetch(request);
   },
   async queue(batch, env) {
@@ -454,9 +469,10 @@ export default {
         const source = await env.PHOTOS.get(job.source_id);
         if (!source) throw new Error('Original image is missing');
         const look = job.look ?? lookOf(job.background);
-        const result = await editPhoto(env, { account, menu: job.menu_id }, source, source.httpMetadata.contentType, look);
-        const photo = await savePhoto(env, job.menu_id, result.data, result.mime,
-          { width: result.width, height: result.height, cutout: look === 'cutout' });
+        const model = connect(env, job.provider ? { provider: job.provider, model: job.model } : choose(env, await loadSettings(env), 'photo'));
+        const photo = await editPhoto(env, { account, menu: job.menu_id }, model,
+          { image: source, mime: source.httpMetadata.contentType, look, source: job.source_id },
+          (result) => savePhoto(env, job.menu_id, result.data, result.mime, { width: result.width, height: result.height, cutout: look === 'cutout' }));
         await query(env, "UPDATE photo_jobs SET status = 'ready', result_id = ?, updated_at = ? WHERE id = ? AND updated_at = ?",
           photo, now(), job.id, lease).run();
         await logEvent(env, account, job.menu_id, 'photo_edit_finished', { job: job.id, look, status: 'ready', photo });

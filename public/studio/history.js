@@ -81,6 +81,7 @@ export async function restoreRevision() {
   try {
     load(await api(`menus/${S.state.id}/revisions/${encodeURIComponent(entry.id)}/restore`, 'POST', { version: S.state.version }));
     resetSaves();
+    S.onEdit?.();
     S.viewing = null;
     revisions = null;
     S.render();

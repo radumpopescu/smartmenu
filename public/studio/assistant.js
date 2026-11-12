@@ -3,6 +3,7 @@ import { blocker, edited, flush } from './save.js';
 import { sendPreview } from './preview.js';
 import { planOps } from '/studio/ops.js';
 import { escape as e } from '/guest/render.js';
+import { endVoice, heardOf, startVoice, voiceEvent, voiceMenuChanged, voiceOn, voiceState } from './voice.js';
 
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const kinds = { add: 'Add', change: 'Change', remove: 'Remove', move: 'Move' };
@@ -12,11 +13,15 @@ let failure = '';
 let note = '';
 let answer = null;
 let listening = null;
+const spoken = 'Spoken request';
+const voiceLabels = { connecting: 'Connecting…', listening: 'Listening', hearing: 'Hearing you', thinking: 'Thinking…', reviewing: 'Microphone paused while you review' };
 
 const icon = {
   send: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
-  mic: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>'
+  mic: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/><path class="mic-slash" d="M4 3l16 18"/></svg>'
 };
+
+const micLabel = () => S.session?.voice ? 'Talk to the assistant' : 'Dictate';
 
 export const assistantHTML = () => `<section class="assistant" aria-labelledby="assistant-title">
   <div class="assistant-intro"><h2 id="assistant-title">What would you like to change?</h2>
@@ -26,9 +31,11 @@ export const assistantHTML = () => `<section class="assistant" aria-labelledby="
     <div class="composer-row">
       <label class="sr-only" for="ask">Tell the assistant what to change</label>
       <textarea id="ask" name="message" rows="1" maxlength="1000" placeholder="Tell me what to change…" enterkeyhint="send" autocomplete="off"></textarea>
-      <button type="button" class="round mic" data-do="mic" aria-label="Dictate" aria-pressed="false" ${Recognition ? '' : 'hidden'}>${icon.mic}</button>
+      <button type="button" class="round mic" data-do="mic" aria-label="${micLabel()}" aria-pressed="false" ${Recognition || S.session?.voice ? '' : 'hidden'}>${icon.mic}</button>
       <button class="round send" aria-label="Send">${icon.send}</button>
     </div>
+    <div class="voice" id="voice" hidden></div>
+    <p class="sr-only" id="voice-live" role="status" aria-live="polite"></p>
     <div class="examples" id="examples"></div>
   </form>
   <div class="assistant-feed" id="assistant-feed"></div>
@@ -106,7 +113,7 @@ export function renderAssistant() {
   if (!feed || !S.state) return;
   feed.innerHTML = feedHTML();
   const field = document.querySelector('#ask');
-  const idle = !working && !S.proposal && !field.value.trim();
+  const idle = !working && !S.proposal && !voiceOn() && !field.value.trim();
   document.querySelector('#examples').innerHTML = idle ? `<span class="examples-label">Try</span>${examples(S.state.draft).map((text) =>
     `<button type="button" class="example" data-do="example">${e(text)}</button>`).join('')}` : '';
   document.querySelector('#composer-note').innerHTML = failure ? `<span class="is-error">${e(failure)}</span>` :
@@ -114,6 +121,7 @@ export function renderAssistant() {
   document.querySelector('.composer .send').disabled = Boolean(working);
   field.readOnly = Boolean(working);
   lock();
+  renderVoice();
 }
 
 function lock() {
@@ -154,11 +162,8 @@ export async function ask(text) {
     turns.push({ role: 'user', text: message }, { role: 'assistant', text: reply });
     document.querySelector('#ask').value = '';
     fit();
-    if (ops.length) {
-      const full = planOps(S.state.draft, ops).changes;
-      S.proposal = { message, reply, ops, full, ticked: new Set(full.filter((change) => change.ok).map((change) => change.index)), view: 'after' };
-      replan();
-    } else answer = { message, reply: reply || 'I did not find anything to change.' };
+    if (ops.length) propose(message, reply, ops);
+    else answer = { message, reply: reply || 'I did not find anything to change.' };
   } catch (error) {
     failure = friendly(error);
   } finally {
@@ -166,11 +171,22 @@ export async function ask(text) {
     renderAssistant();
     sendPreview();
   }
+  if (!showReply()) document.querySelector('#ask').focus();
+}
+
+function showReply() {
   const focus = document.querySelector('#assistant-feed .reply');
-  if (focus && !failure) {
-    focus.focus({ preventScroll: true });
-    focus.closest('.assistant-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  } else document.querySelector('#ask').focus();
+  if (!focus || failure) return false;
+  focus.focus({ preventScroll: true });
+  focus.closest('.assistant-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  return true;
+}
+
+function propose(message, reply, ops, voice = false) {
+  const full = planOps(S.state.draft, ops).changes;
+  S.proposal = { message, reply, ops, full, ticked: new Set(full.filter((change) => change.ok).map((change) => change.index)), view: 'after', voice };
+  replan();
+  voiceEvent({ type: 'local.review' });
 }
 
 function replan() {
@@ -201,6 +217,7 @@ export async function applyProposal() {
   S.state.draft = normalize(proposal.planned);
   S.proposal = null;
   edited({ source: 'agent', summary: proposal.message });
+  voiceEvent({ type: 'local.resolved', applied: n, total: proposal.full.length, draft: S.state.draft });
   S.render();
   renderAssistant();
   document.querySelector('#ask').focus();
@@ -218,7 +235,9 @@ async function undo(before) {
 }
 
 export function discardProposal() {
+  const total = S.proposal?.full.length ?? 0;
   S.proposal = null;
+  voiceEvent({ type: 'local.resolved', applied: 0, total, draft: S.state.draft });
   renderAssistant();
   sendPreview();
   document.querySelector('#ask').focus();
@@ -239,7 +258,7 @@ export function fit() {
 
 function typed() {
   fit();
-  const idle = !working && !S.proposal && !document.querySelector('#ask').value.trim();
+  const idle = !working && !S.proposal && !voiceOn() && !document.querySelector('#ask').value.trim();
   if (failure || idle !== Boolean(document.querySelector('#examples').childElementCount)) {
     failure = '';
     renderAssistant();
@@ -264,6 +283,7 @@ document.addEventListener('input', ({ target }) => {
 });
 
 export function toggleMic() {
+  if (S.session?.voice) { toggleVoice(); return; }
   if (listening) { listening.stop(); return; }
   if (!Recognition || working) return;
   const field = document.querySelector('#ask');
@@ -297,3 +317,102 @@ export function toggleMic() {
   button.setAttribute('aria-label', 'Stop dictating');
   renderAssistant();
 }
+
+const clock = (ms) => {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  return Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
+};
+
+function hintSeen(mark) {
+  try {
+    if (mark) localStorage.setItem('sm-voice-hint', '1');
+    return localStorage.getItem('sm-voice-hint') === '1';
+  } catch { return false; }
+}
+
+export function renderVoice() {
+  const bar = document.querySelector('#voice');
+  const button = document.querySelector('[data-do="mic"]');
+  if (!bar || !button || !S.session?.voice) return;
+  const state = voiceState();
+  const phase = state?.phase && state.phase !== 'ended' ? state.phase : '';
+  button.dataset.voice = phase;
+  button.setAttribute('aria-pressed', String(Boolean(phase)));
+  button.setAttribute('aria-label', phase ? 'Turn voice off' : micLabel());
+  if (!phase) button.style.removeProperty('--level');
+  const label = phase ? voiceLabels[phase] : '';
+  const live = document.querySelector('#voice-live');
+  const announce = phase ? 'Voice on. ' + label : bar.hidden ? live.textContent : 'Voice off.';
+  if (live.textContent !== announce) live.textContent = announce;
+  bar.hidden = !phase;
+  if (!phase) { bar.innerHTML = ''; return; }
+  if (!bar.firstChild) {
+    bar.innerHTML = `<div class="voice-row"><span class="voice-dot" aria-hidden="true"></span><strong class="voice-state"></strong>
+      <span class="voice-time" title="Time voice has been on"></span><button type="button" class="btn quiet voice-end" data-do="voice-end">End</button></div>
+      <p class="voice-heard"></p>
+      ${hintSeen() ? '' : '<p class="voice-hint">While voice is on, what you say is sent to OpenAI so the assistant can understand it.</p>'}`;
+  }
+  bar.dataset.phase = phase;
+  bar.querySelector('.voice-state').textContent = label;
+  bar.querySelector('.voice-time').textContent = clock(Date.now() - state.startedAt);
+  const heard = heardOf(state);
+  const words = phase === 'hearing' || phase === 'thinking' ? heard :
+    phase === 'listening' ? 'Say what you would like to change.' : phase === 'connecting' ? 'Starting the microphone…' : 'Apply or discard to keep talking.';
+  const quoted = (phase === 'hearing' || phase === 'thinking') && heard;
+  const element = bar.querySelector('.voice-heard');
+  element.classList.toggle('is-quote', Boolean(quoted));
+  element.textContent = quoted ? `“${words}”` : words;
+}
+
+const voiceHooks = {
+  draft: () => S.state.draft,
+  change: renderVoice,
+  level: (level) => document.querySelector('[data-do="mic"]')?.style.setProperty('--level', level.toFixed(2)),
+  proposal({ heard, reply, ops }) {
+    if (working) return;
+    answer = null;
+    failure = '';
+    note = '';
+    if (S.viewing) { S.viewing = null; S.render(); }
+    propose(heard || spoken, reply, ops, true);
+    renderAssistant();
+    sendPreview();
+    showReply();
+  },
+  answer({ heard, reply }) {
+    if (working || S.proposal) return;
+    answer = { message: heard || spoken, reply };
+    failure = '';
+    renderAssistant();
+    showReply();
+  },
+  heard({ text }) {
+    if (!S.proposal?.voice || S.proposal.message !== spoken) return;
+    S.proposal.message = text;
+    renderAssistant();
+  },
+  notice({ text }) {
+    note = text;
+    renderAssistant();
+  },
+  ended(message, reason) {
+    if (reason === 'failed') failure = message;
+    else note = reason === 'stopped' ? '' : message;
+    if (reason !== 'failed') hintSeen(true);
+    renderAssistant();
+    renderVoice();
+  }
+};
+
+function toggleVoice() {
+  if (voiceOn()) { endVoice('stopped'); return; }
+  failure = '';
+  note = '';
+  startVoice(S.state.id, voiceHooks);
+  if (S.proposal) voiceEvent({ type: 'local.review' });
+  renderAssistant();
+}
+
+S.onEdit = voiceMenuChanged;
+
+export { endVoice };

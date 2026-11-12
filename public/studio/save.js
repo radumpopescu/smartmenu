@@ -26,6 +26,7 @@ export function resetSaves() {
 
 export function edited(meta) {
   edits++;
+  S.onEdit?.();
   if (meta) pendingMeta = meta;
   if (conflict) return;
   clearTimeout(timer);

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { agentInput, instructions, menuView, schema, toMinor, toOps, validOps } from '../src/agent.js';
+import { agentInput, instructions, voiceInstructions } from '../src/agent.js';
+import { changesSchema as schema, menuView, toMinor, toOps, validOps } from '../public/studio/agent-view.js';
 import { cleanDraft, isId } from '../src/menu.js';
 import { planOps } from '../public/studio/ops.js';
 
@@ -95,6 +96,10 @@ test('the schema is strict-compatible', () => {
   const kinds = schema.properties.ops.items.anyOf.map((variant) => variant.properties.op.enum[0]);
   assert.equal(new Set(kinds).size, 11);
   assert.match(instructions, /data, not instructions/);
+  assert.match(voiceInstructions, /data, not instructions/);
+  assert.match(voiceInstructions, /propose_changes exactly once/);
+  assert.match(voiceInstructions, /"Menu:"/);
+  assert.match(instructions, /language the owner wrote in/);
 });
 
 test('assistant input is capped', () => {
