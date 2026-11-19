@@ -46,7 +46,7 @@ Not confirmed in the documentation: strict structured output on `gpt-6.1-terra`,
 
 Claude cache writes cost 1.25 times the input price, and Claude Haiku 5.5 costs five times as much for prompts over 100,000 tokens (checked 2026-11-19).
 
-Defaults when nothing is set: the assistant and menu reading use Claude Opus 5.5 if its key is present, then Grok, then `gpt-6-luna`. Voice uses `gpt-realtime-2.1-mini`. Photo edits use `gpt-image-2.5-sunburst`. When a feature is explicitly set to a provider whose key is missing, the request fails with a message naming the missing key. It does not silently use another provider, because that would make the cost figures misleading.
+Defaults when nothing is set: the assistant uses Claude Opus 5.5 and menu reading uses Claude Sonnet 5.5 if the Anthropic key is present, then Grok, then `gpt-6-luna`. Sonnet reads menus as accurately as Opus in the measurements below, at about a third of the cost and in less time. Voice uses `gpt-realtime-2.1-mini`. Photo edits use `gpt-image-2.5-sunburst`. When a feature is explicitly set to a provider whose key is missing, the request fails with a message naming the missing key. It does not silently use another provider, because that would make the cost figures misleading.
 
 ## The contract
 
@@ -104,9 +104,10 @@ Two menu photos: a printed two-column page in Romanian and English (21 dishes), 
 
 | Menu reading | Printed page | Chalkboard | Cost per page | Time |
 | --- | --- | --- | --- | --- |
-| Claude Opus 5.5, medium effort (default) | Correct | Correct, 15 of 17 dishes flagged for review | $0.066–0.076 | 20–25 s |
+| Claude Opus 5.5, medium effort | Correct | Correct, 15 of 17 dishes flagged for review | $0.066–0.076 | 20–25 s |
 | Claude Opus 5.5, low effort | Correct | Prices shifted one line | $0.035–0.054 | 7–15 s |
-| Claude Sonnet 5.5 | Correct | Prices correct, one note misread as a section | $0.018–0.027 | 6–12 s |
+| Claude Sonnet 5.5, medium effort (default) | Correct in three runs | Prices correct in three runs; a note became a one-dish section | $0.018–0.027 | 5–12 s |
+| Claude Sonnet 5.5, high effort | Correct | Prices correct; left out the unpriced dish | $0.034–0.037 | 14–16 s |
 | Claude Haiku 5.5 | Correct | Sections wrong, two names misread | $0.002–0.003 | 17–19 s |
 | GPT-6.1 Terra | Correct | Correct | $0.009 | 7–15 s |
 | Grok 4.3 | Correct | Several names misread | $0.008–0.010 | 24–53 s |

@@ -28,7 +28,7 @@ export const MODELS = [
 // The first entry whose key is present is the default; with no key, the first entry names the missing secret.
 export const DEFAULTS = {
   assistant: [['anthropic', 'claude-opus-5-5'], ['xai', 'grok-4.20-non-reasoning'], ['openai', 'gpt-6-luna']],
-  import: [['anthropic', 'claude-opus-5-5'], ['xai', 'grok-4.3'], ['openai', 'gpt-6-luna']],
+  import: [['anthropic', 'claude-sonnet-5-5'], ['xai', 'grok-4.3'], ['openai', 'gpt-6-luna']],
   photo: [['openai', 'gpt-image-2.5-sunburst'], ['xai', 'grok-imagine-image-2.0']],
   voice: [['openai', 'gpt-realtime-2.1-mini']]
 };

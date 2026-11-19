@@ -33,7 +33,7 @@ test('each feature lists the models that can serve it, and every default is in t
 test('Claude is the default for the assistant and menu reading when its key is present', () => {
   const env = { ANTHROPIC_API_KEY: 'a', XAI_API_KEY: 'x', OPENAI_API_KEY: 'o' };
   assert.deepEqual(choose(env, {}, 'assistant'), { provider: 'anthropic', model: 'claude-opus-5-5', explicit: false });
-  assert.deepEqual(choose(env, {}, 'import'), { provider: 'anthropic', model: 'claude-opus-5-5', explicit: false });
+  assert.deepEqual(choose(env, {}, 'import'), { provider: 'anthropic', model: 'claude-sonnet-5-5', explicit: false });
   assert.equal(choose({ XAI_API_KEY: 'x' }, {}, 'assistant').provider, 'xai');
   assert.equal(choose(env, {}, 'voice').provider, 'openai');
   assert.match(missingKey({}, 'assistant', choose({}, {}, 'assistant')), /ANTHROPIC_API_KEY or XAI_API_KEY or OPENAI_API_KEY/);
