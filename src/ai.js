@@ -123,7 +123,8 @@ async function claude(provider, call, { name, schema, instructions, input, effor
       model: provider.model,
       // Thinking counts against max_tokens, so leave room beyond the answer itself.
       max_tokens: 16000,
-      system: viaTool ? `${instructions}\n\nAnswer by calling the ${name} tool exactly once.` : instructions,
+      // The rules, the schema and any tool are the same on every request, so they are cached; the menu comes after them.
+      system: [{ type: 'text', text: viaTool ? `${instructions}\n\nAnswer by calling the ${name} tool exactly once.` : instructions, cache_control: { type: 'ephemeral' } }],
       messages: claudeMessages(input),
       output_config: { effort, ...(viaTool ? {} : { format: { type: 'json_schema', schema } }) },
       ...(viaTool ? { tools: [{ name, description: 'Return the result.', input_schema: schema }], tool_choice: { type: 'auto' } } : {}),

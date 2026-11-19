@@ -192,7 +192,8 @@ test('the assistant on Claude uses a tool, because its schema is too large for s
   assert.equal(body.output_config.effort, 'low');
   assert.equal(body.tools[0].name, 'menu_changes');
   assert.deepEqual(body.tool_choice, { type: 'auto' });
-  assert.match(body.system, /calling the menu_changes tool exactly once/);
+  assert.match(body.system[0].text, /calling the menu_changes tool exactly once/);
+  assert.deepEqual(body.system[0].cache_control, { type: 'ephemeral' });
   assert.equal(body.messages[0].role, 'user');
   assert.deepEqual(result.ops, [{ op: 'update_dish', id: '22222222-2222-4222-8222-222222222222', price: 1200 }]);
   assert.equal(row(rows[0]).status, 'ok');

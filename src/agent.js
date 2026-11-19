@@ -26,7 +26,7 @@ export const instructions = `You edit a restaurant menu for its owner by proposi
 The menu is given as JSON. ${handlesText}
 
 ${rules}
-- Reply in one or two short sentences in the language the owner wrote in, saying what you propose.
+- Reply in one or two short sentences in the language the owner wrote in, saying what you propose. Never say that a change has been made; nothing changes until the owner applies it.
 - If the request is unclear, return no operations and ask one short question. If it is not about this menu, return no operations and say briefly that you can only help with the menu.`;
 
 export const voiceInstructions = `You edit a restaurant menu for its owner, who is speaking to you while looking at the menu on screen. You propose operations; the owner reviews every operation on screen before anything changes.

@@ -97,3 +97,18 @@ This document and the review of both in the browser.
 ## Not verified until real keys are used
 
 Every call to xAI and OpenAI, including the whole voice path. A voice session cannot be imitated locally, because the audio connection is made directly between the browser and OpenAI.
+
+## Measured on real requests (2026-11-19)
+
+Two menu photos: a printed two-column page in Romanian and English (21 dishes), and a handwritten German chalkboard (17 dishes, prices written slightly off their lines). "Correct" means every dish, price and section matched the photo.
+
+| Menu reading | Printed page | Chalkboard | Cost per page | Time |
+| --- | --- | --- | --- | --- |
+| Claude Opus 5.5, medium effort (default) | Correct | Correct, 15 of 17 dishes flagged for review | $0.066–0.076 | 20–25 s |
+| Claude Opus 5.5, low effort | Correct | Prices shifted one line | $0.035–0.054 | 7–15 s |
+| Claude Sonnet 5.5 | Correct | Prices correct, one note misread as a section | $0.018–0.027 | 6–12 s |
+| Claude Haiku 5.5 | Correct | Sections wrong, two names misread | $0.002–0.003 | 17–19 s |
+| GPT-6.1 Terra | Correct | Correct | $0.009 | 7–15 s |
+| Grok 4.3 | Correct | Several names misread | $0.008–0.010 | 24–53 s |
+
+Four assistant requests (a percentage price rise with rounding, a new dish with portion and tag, a translation into Romanian, and two availability changes) came back correct on Claude Opus 5.5, Claude Sonnet 5.5 and Grok 4.20. Per request, Opus took 2–6 s and cost about $0.022 before caching and $0.010 once the rules and tool schema were read from the prompt cache; Sonnet took 1–5 s at $0.010–0.015; Grok took 1–4 s at $0.001–0.004.
