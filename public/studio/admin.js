@@ -3,8 +3,8 @@ import { escape as e } from '/guest/render.js';
 
 const FEATURES = ['assistant', 'import', 'photo', 'voice'];
 const featureNames = { assistant: 'Assistant', agent: 'Assistant', import: 'Menu reading', photo: 'Photo edits', voice: 'Voice', voice_transcript: 'Voice transcription' };
-const providers = { xai: 'xAI', openai: 'OpenAI' };
-const secrets = { xai: 'XAI_API_KEY', openai: 'OPENAI_API_KEY' };
+const providers = { anthropic: 'Anthropic', xai: 'xAI', openai: 'OpenAI' };
+const secrets = { anthropic: 'ANTHROPIC_API_KEY', xai: 'XAI_API_KEY', openai: 'OPENAI_API_KEY' };
 const pageSize = 25;
 
 const models = { data: null, error: '', notes: {} };

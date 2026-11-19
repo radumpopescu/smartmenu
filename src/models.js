@@ -1,13 +1,17 @@
 export const FEATURES = ['assistant', 'import', 'photo', 'voice'];
 export const TRANSCRIBE_MODEL = 'gpt-transcribe';
-export const SECRETS = { xai: 'XAI_API_KEY', openai: 'OPENAI_API_KEY' };
+export const SECRETS = { anthropic: 'ANTHROPIC_API_KEY', xai: 'XAI_API_KEY', openai: 'OPENAI_API_KEY' };
 
 const text = (input, cached, output) => ({ input, cached, output });
+const claude = (input, cacheWrite, cached, output) => ({ input, cacheWrite, cached, output });
 const realtime = (textIn, cachedTextIn, textOut, audioIn, cachedAudioIn, audioOut, imageIn, cachedImageIn) =>
   ({ textIn, cachedTextIn, textOut, audioIn, cachedAudioIn, audioOut, imageIn, cachedImageIn });
 
 // Prices are US dollars per million tokens, which is also millionths of a dollar per token.
 export const MODELS = [
+  { provider: 'anthropic', model: 'claude-opus-5-5', label: 'Claude Opus 5.5', features: ['assistant', 'import'], prices: claude(4, 5, 0.2, 20), fallback: true },
+  { provider: 'anthropic', model: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', features: ['assistant', 'import'], prices: claude(2, 2.5, 0.1, 10), fallback: true },
+  { provider: 'anthropic', model: 'claude-haiku-5-5', label: 'Claude Haiku 5.5', features: ['assistant', 'import'], prices: claude(0.1, 0.125, 0.01, 0.5), longContext: 100000, longRate: 5 },
   { provider: 'xai', model: 'grok-4.20-non-reasoning', label: 'Grok 4.20 (non-reasoning)', features: ['assistant'], prices: text(1.25, 0.2, 2.5), longContext: 200000 },
   { provider: 'xai', model: 'grok-4.3', label: 'Grok 4.3', features: ['assistant', 'import'], prices: text(1.25, 0.2, 2.5), longContext: 200000 },
   { provider: 'openai', model: 'gpt-6-luna', label: 'GPT-6 Luna', features: ['assistant', 'import'], prices: text(0.1, 0.01, 0.5) },
@@ -23,8 +27,8 @@ export const MODELS = [
 
 // The first entry whose key is present is the default; with no key, the first entry names the missing secret.
 export const DEFAULTS = {
-  assistant: [['xai', 'grok-4.20-non-reasoning'], ['openai', 'gpt-6-luna']],
-  import: [['xai', 'grok-4.3'], ['openai', 'gpt-6-luna']],
+  assistant: [['anthropic', 'claude-opus-5-5'], ['xai', 'grok-4.20-non-reasoning'], ['openai', 'gpt-6-luna']],
+  import: [['anthropic', 'claude-opus-5-5'], ['xai', 'grok-4.3'], ['openai', 'gpt-6-luna']],
   photo: [['openai', 'gpt-image-2.5-sunburst'], ['xai', 'grok-imagine-image-2.0']],
   voice: [['openai', 'gpt-realtime-2.1-mini']]
 };
@@ -43,6 +47,16 @@ function tokenCost(prices, usage, longContext) {
   const cached = Math.min(input, part((usage.input_tokens_details ?? usage.prompt_tokens_details)?.cached_tokens));
   const rate = longContext && input >= longContext ? 2 : 1;
   return micros(rate * ((input - cached) * prices.input + cached * (prices.cached ?? prices.input) + output * prices.output));
+}
+
+function claudeCost(prices, usage, entry) {
+  const input = count(usage.input_tokens);
+  const output = count(usage.output_tokens);
+  if (input === null || output === null) return null;
+  const read = part(usage.cache_read_input_tokens);
+  const write = part(usage.cache_creation_input_tokens);
+  const rate = entry.longContext && input + read + write > entry.longContext ? entry.longRate ?? 2 : 1;
+  return micros(rate * (input * prices.input + write * prices.cacheWrite + read * prices.cached + output * prices.output));
 }
 
 function realtimeCost(prices, usage) {
@@ -85,6 +99,7 @@ export function costMicros(provider, model, usage) {
     const seconds = usage.type === 'duration' && Number.isFinite(usage.seconds) && usage.seconds >= 0 ? usage.seconds : null;
     return seconds === null ? null : micros(seconds / 60 * prices.perMinute * 1e6);
   }
+  if (prices.cacheWrite !== undefined) return claudeCost(prices, usage, entry);
   if (prices.audioIn !== undefined) return realtimeCost(prices, usage);
   if (prices.imageOut !== undefined) return imageCost(prices, usage);
   return tokenCost(prices, usage, entry.longContext);

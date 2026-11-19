@@ -51,7 +51,7 @@ export function agentInput(input) {
 export function askAgent(env, meta, provider, draft, { message, history }) {
   const { text, handles } = menuView(draft);
   return structured(env, { ...meta, feature: 'assistant', request: message }, provider, {
-    name: 'menu_changes', schema: changesSchema, instructions, maxTokens: 4000,
+    name: 'menu_changes', schema: changesSchema, instructions, maxTokens: 4000, effort: 'low',
     input: [...history, { role: 'user', content: `Menu:\n${text}\n\nOwner's message:\n${message}` }]
   }, (output) => {
     if (!output || typeof output.reply !== 'string') throw new RequestError(422, 'The assistant could not finish this request. Try a smaller change.');

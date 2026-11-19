@@ -35,20 +35,21 @@ Secrets go in `.dev.vars` locally (copied from `.dev.vars.example`, never commit
 
 | Setting | Kind | Purpose |
 | --- | --- | --- |
+| `ANTHROPIC_API_KEY` | secret | Lets the assistant and menu reading use Claude. Claude Opus 5.5 is their default when this key is set. |
 | `XAI_API_KEY` | secret | Lets features use xAI (Grok). |
 | `OPENAI_API_KEY` | secret | Lets features use OpenAI, and turns voice on. |
 | `SIGNUP_CODE` | secret | Required to create an account. |
 | `ADMIN_EMAILS` | secret | Comma-separated emails of the accounts that may open the admin page at `/admin` and call `/api/admin/*`. Empty means nobody; everyone else gets a 404. Set it with `npx wrangler secret put ADMIN_EMAILS` so the addresses stay out of the repository; locally, put it in `.dev.vars`. |
 | `OPENAI_REASONING` | var | Reasoning effort sent with OpenAI text and menu-reading calls (`low` by default; empty to omit it). |
 | `VOICE` | var | `off` hides and refuses the spoken assistant even when the OpenAI key is set. |
-| `XAI_BASE_URL`, `OPENAI_BASE_URL` | var | Override `https://api.x.ai/v1` and `https://api.openai.com/v1`, for the local mock or a stub. |
+| `ANTHROPIC_BASE_URL`, `XAI_BASE_URL`, `OPENAI_BASE_URL` | var | Override `https://api.anthropic.com`, `https://api.x.ai/v1` and `https://api.openai.com/v1`, for the local mock or a stub. |
 | `PUBLIC_ORIGIN` | var | The hostname for QR codes and canonical links. |
 
 ### Choosing models
 
 Which provider and model serves each feature (`assistant`, `import` for menu reading, `photo` for photo edits, `voice`) is a setting, changed on the admin page at `/admin` (or `PUT /api/admin/settings`) and stored in the `settings` table. It takes effect on the next request; nothing is redeployed. The models on offer and their prices are in `src/models.js`; adding a model is one entry there.
 
-With nothing set, the assistant uses `grok-4.20-non-reasoning` and menu reading uses `grok-4.3` when `XAI_API_KEY` is set, otherwise `gpt-6-luna`. Photo edits use `gpt-image-2.5-sunburst` when `OPENAI_API_KEY` is set, otherwise `grok-imagine-image-2.0`. Voice uses `gpt-realtime-2.1-mini`. Once a feature is set explicitly, it never falls back: if that provider's key is missing, the feature answers 503 with a message naming the missing secret. "Reset" on the admin page returns a feature to the default.
+With nothing set, the assistant and menu reading use `claude-opus-5-5` when `ANTHROPIC_API_KEY` is set. Without it, the assistant uses `grok-4.20-non-reasoning` and menu reading uses `grok-4.3` when `XAI_API_KEY` is set, otherwise `gpt-6-luna`. Claude cannot edit photos or hold a voice session, so those stay on OpenAI or xAI. Photo edits use `gpt-image-2.5-sunburst` when `OPENAI_API_KEY` is set, otherwise `grok-imagine-image-2.0`. Voice uses `gpt-realtime-2.1-mini`. Once a feature is set explicitly, it never falls back: if that provider's key is missing, the feature answers 503 with a message naming the missing secret. "Reset" on the admin page returns a feature to the default.
 
 The earlier model vars (`XAI_MODEL`, `XAI_VISION_MODEL`, `XAI_IMAGE_MODEL`, `OPENAI_MODEL`, `VISION_MODEL`, `IMAGE_MODEL`, `IMAGE_PROVIDER`) are gone; their values are the catalog defaults above.
 
@@ -76,7 +77,7 @@ npm run dev:mock
 1. Run `npx wrangler login` and select the Cloudflare account you want to use. Enable R2 on that account.
 2. Create the D1 database with `npx wrangler d1 create smartmenu`. Add the returned `database_id` to the `DB` entry in `wrangler.jsonc`. Create the bucket with `npx wrangler r2 bucket create smartmenu-photos` and the queue with `npx wrangler queues create smartmenu-photo-jobs`. Use your chosen names in the config if these names are taken.
 3. Run `npx wrangler d1 migrations apply DB --remote` and `npm run deploy`. Apply new migrations before deploying a Worker that needs them.
-4. Run `npx wrangler secret put SIGNUP_CODE` with a strong private signup code. Run `npx wrangler secret put XAI_API_KEY` and `npx wrangler secret put OPENAI_API_KEY` with the AI projects' keys. Set `ADMIN_EMAILS` in `wrangler.jsonc` to the accounts that may open `/admin`, then choose the models there. Accounts can be created only when the signup code is set and supplied. Existing accounts can sign in when signup is closed.
+4. Run `npx wrangler secret put SIGNUP_CODE` with a strong private signup code. Run `npx wrangler secret put ANTHROPIC_API_KEY`, `npx wrangler secret put XAI_API_KEY` and `npx wrangler secret put OPENAI_API_KEY` with the AI projects' keys. Set the `ADMIN_EMAILS` secret to the accounts that may open `/admin`, then choose the models there. Accounts can be created only when the signup code is set and supplied. Existing accounts can sign in when signup is closed.
 5. Set `PUBLIC_ORIGIN` in the `vars` of `wrangler.jsonc` to the guest hostname, for example `https://menu.example.com`, before distributing QR codes. QR codes and canonical links use it. When it is empty, they use the hostname of the request, so a code downloaded from a preview or `workers.dev` hostname would point there. Republishing preserves the menu’s slug.
 
 Use separate bindings and secrets for staging and production. Account-level daily quotas apply to uploads, menu extraction, photo edits, assistant requests and voice sessions. The Worker uses a Cloudflare rate-limit binding for signup and sign-in. D1 holds accounts, sessions, drafts, published snapshots and job status. R2 is private, with the Worker serving only currently published images to guests. The Worker renders the guest page at `/m/:slug` as one HTML response with the template's CSS inline, and caches it, guest menu data and public images at the edge. Published changes can take up to a minute to appear at every edge location. The queue limits concurrent image edits and retries failed jobs. Menu updates use a version check to prevent an older browser tab from overwriting a newer draft.

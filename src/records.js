@@ -59,6 +59,14 @@ export const maxRecord = 16000;
 
 export function tokensOf(usage) {
   if (!usage) return { input: null, output: null, cached: null, reasoning: null, audioInput: null, audioOutput: null };
+  if (usage.cache_read_input_tokens !== undefined || usage.cache_creation_input_tokens !== undefined) {
+    const read = count(usage.cache_read_input_tokens) ?? 0;
+    const input = count(usage.input_tokens);
+    return {
+      input: input === null ? null : input + read + (count(usage.cache_creation_input_tokens) ?? 0),
+      output: count(usage.output_tokens), cached: read, reasoning: null, audioInput: null, audioOutput: null
+    };
+  }
   return {
     input: count(usage.input_tokens ?? usage.prompt_tokens),
     output: count(usage.output_tokens ?? usage.completion_tokens),

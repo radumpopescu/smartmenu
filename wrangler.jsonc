@@ -17,6 +17,7 @@
     { "name": "AUTH_LIMIT", "namespace_id": "101", "simple": { "limit": 8, "period": 60 } }
   ],
   "vars": {
+    "ANTHROPIC_BASE_URL": "",
     "XAI_BASE_URL": "",
     "OPENAI_BASE_URL": "",
     "OPENAI_REASONING": "low",

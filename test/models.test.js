@@ -20,14 +20,33 @@ test('the catalog holds the plan prices', () => {
 
 test('each feature lists the models that can serve it, and every default is in the catalog', () => {
   const served = (feature) => MODELS.filter((entry) => entry.features.includes(feature)).map((entry) => entry.model);
-  assert.deepEqual(served('assistant'), ['grok-4.20-non-reasoning', 'grok-4.3', 'gpt-6-luna', 'gpt-6.1-terra', 'gpt-6.1-sol']);
-  assert.deepEqual(served('import'), ['grok-4.3', 'gpt-6-luna', 'gpt-6.1-terra', 'gpt-6.1-sol', 'gpt-6-astra']);
+  assert.deepEqual(served('assistant'), ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'grok-4.20-non-reasoning', 'grok-4.3', 'gpt-6-luna', 'gpt-6.1-terra', 'gpt-6.1-sol']);
+  assert.deepEqual(served('import'), ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'grok-4.3', 'gpt-6-luna', 'gpt-6.1-terra', 'gpt-6.1-sol', 'gpt-6-astra']);
   assert.deepEqual(served('photo'), ['gpt-image-2.5-sunburst', 'grok-imagine-image-2.0']);
   assert.deepEqual(served('voice'), ['gpt-realtime-2.1', 'gpt-realtime-2.1-mini']);
   for (const feature of FEATURES) for (const [provider, model] of DEFAULTS[feature]) assert.ok(serves(feature, provider, model));
   assert.equal(serves('import', 'xai', 'grok-4.20-non-reasoning'), false);
   assert.equal(serves('assistant', 'xai', 'gpt-6-luna'), false);
   assert.equal(modelOf('openai', 'nope'), null);
+});
+
+test('Claude is the default for the assistant and menu reading when its key is present', () => {
+  const env = { ANTHROPIC_API_KEY: 'a', XAI_API_KEY: 'x', OPENAI_API_KEY: 'o' };
+  assert.deepEqual(choose(env, {}, 'assistant'), { provider: 'anthropic', model: 'claude-opus-5-5', explicit: false });
+  assert.deepEqual(choose(env, {}, 'import'), { provider: 'anthropic', model: 'claude-opus-5-5', explicit: false });
+  assert.equal(choose({ XAI_API_KEY: 'x' }, {}, 'assistant').provider, 'xai');
+  assert.equal(choose(env, {}, 'voice').provider, 'openai');
+  assert.match(missingKey({}, 'assistant', choose({}, {}, 'assistant')), /ANTHROPIC_API_KEY or XAI_API_KEY or OPENAI_API_KEY/);
+});
+
+test('Claude cost bills uncached input, cache writes, cache reads and output separately', () => {
+  // Opus 5.5: 1000 × 4 + 200 × 5 + 3000 × 0.2 + 500 × 20 = 15600 µ$
+  assert.equal(costMicros('anthropic', 'claude-opus-5-5', { input_tokens: 1000, cache_creation_input_tokens: 200, cache_read_input_tokens: 3000, output_tokens: 500 }), 15600);
+  assert.equal(costMicros('anthropic', 'claude-opus-5-5', { input_tokens: 1000, output_tokens: 500 }), 14000);
+  // Haiku 5.5 over 100,000 prompt tokens, cache reads included in the count, pays five times the rates: 5 × (90000 × 0.1 + 20000 × 0.01 + 1000 × 0.5)
+  assert.equal(costMicros('anthropic', 'claude-haiku-5-5', { input_tokens: 90000, cache_read_input_tokens: 20000, output_tokens: 1000 }), 48500);
+  assert.equal(costMicros('anthropic', 'claude-haiku-5-5', { input_tokens: 90000, output_tokens: 1000 }), 9500);
+  assert.equal(costMicros('anthropic', 'claude-opus-5-5', { output_tokens: 10 }), null);
 });
 
 test('text token cost bills cached tokens at the cached rate only', () => {
@@ -142,7 +161,8 @@ test('the settings view lists options with prices and key availability', () => {
   assert.equal(view.settings.import.model, 'gpt-6-astra');
   assert.deepEqual(view.options.voice[1], { provider: 'openai', model: 'gpt-realtime-2.1-mini', label: 'GPT Realtime 2.1 mini',
     prices: MODELS.find((entry) => entry.model === 'gpt-realtime-2.1-mini').prices, available: false });
-  assert.equal(view.options.assistant[0].available, true);
+  assert.equal(view.options.assistant.find((option) => option.provider === 'anthropic').available, false);
+  assert.equal(view.options.assistant.find((option) => option.provider === 'xai').available, true);
   assert.deepEqual(view.effective.assistant, { provider: 'xai', model: 'grok-4.20-non-reasoning', explicit: false, label: 'Grok 4.20 (non-reasoning)', available: true, error: null });
   assert.equal(view.effective.import.available, false);
   assert.match(view.effective.import.error, /needs OPENAI_API_KEY/);

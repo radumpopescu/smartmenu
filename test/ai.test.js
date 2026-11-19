@@ -148,3 +148,67 @@ test('xAI photo edits send JSON with a data URI, cost per image and refuse cut-o
   assert.equal(row(rows[0]).cost, 40000);
   await assert.rejects(editPhoto(env, {}, model, { image, mime: 'image/jpeg', look: 'cutout' }, async () => 'p'), /cannot produce/);
 });
+
+const claudeReply = (content, usage = { input_tokens: 900, output_tokens: 120, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }, extra = {}) =>
+  Response.json({ id: 'msg_1', type: 'message', role: 'assistant', model: 'claude-opus-5-5', content, stop_reason: 'end_turn', usage, ...extra });
+const claude = (env, model = 'claude-opus-5-5') => connect(env, { provider: 'anthropic', model });
+
+test('menu reading on Claude sends the photo as an image block with a strict JSON schema', async () => {
+  const sections = [{ name: 'Soups', items: [{ name: 'Borș', description: '', portion: '350 ml', price: 24, review: false }] }];
+  const { requests, rows, DB } = harness(() => claudeReply([{ type: 'thinking', thinking: '' }, { type: 'text', text: JSON.stringify({ sections }) }]));
+  const env = { ANTHROPIC_API_KEY: 'a', DB };
+  const result = await extractMenu(env, image, { account: 'acc', menu: 'm1' }, claude(env));
+  const [request] = requests;
+  assert.equal(String(request.url), 'https://api.anthropic.com/v1/messages');
+  assert.equal(new Headers(request.init.headers).get('anthropic-beta'), 'server-side-fallback-2026-07-01');
+  assert.match(new Headers(request.init.headers).get('authorization'), /\ba$/);
+  assert.equal(request.body.model, 'claude-opus-5-5');
+  assert.equal(request.body.output_config.effort, 'medium');
+  assert.equal(request.body.output_config.format.type, 'json_schema');
+  assert.equal(request.body.tools, undefined);
+  assert.equal(request.body.fallbacks, 'default');
+  const [block, text] = request.body.messages[0].content;
+  assert.deepEqual(block, { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: '/9j/4A==' } });
+  assert.equal(text.type, 'text');
+  assert.equal(result[0].items[0].portion, '350 ml');
+  assert.equal(result[0].items[0].price, 2400);
+  const recorded = row(rows[0]);
+  assert.equal(recorded.provider, 'anthropic');
+  assert.equal(recorded.input, 900);
+  assert.equal(recorded.cost, 900 * 4 + 120 * 20);
+});
+
+test('the assistant on Claude uses a tool, because its schema is too large for strict mode', async () => {
+  const draft = cleanDraft({ name: 'Bistro', subtitle: '', currency: 'EUR', template: 'osteria', palette: 'olive', accent: '', sections: [
+    { id: '11111111-1111-4111-8111-111111111111', name: 'Mains', note: '', items: [{ id: '22222222-2222-4222-8222-222222222222', name: 'Soup', description: '', allergens: '',
+      portion: '', tags: [], price: 1000, calories: null, photo: null, featured: false, available: true }] }] });
+  const input = { reply: 'Raising the soup to 12.', ops: [{ op: 'update_dish', id: 'd1', name: null, description: null, price: 12, portion: null, allergens: null,
+    calories: null, tags: null, featured: null, available: null, clear: [] }] };
+  const { requests, rows, DB } = harness(() => claudeReply([{ type: 'tool_use', id: 'toolu_1', name: 'menu_changes', input }], undefined, { stop_reason: 'tool_use' }));
+  const env = { ANTHROPIC_API_KEY: 'a', DB };
+  const result = await askAgent(env, { account: 'acc', menu: 'm1' }, claude(env), draft, { message: 'Soup costs 12 now', history: [{ role: 'assistant', content: 'Hi' }] });
+  const { body } = requests[0];
+  assert.equal(body.output_config.format, undefined);
+  assert.equal(body.output_config.effort, 'low');
+  assert.equal(body.tools[0].name, 'menu_changes');
+  assert.deepEqual(body.tool_choice, { type: 'auto' });
+  assert.match(body.system, /calling the menu_changes tool exactly once/);
+  assert.equal(body.messages[0].role, 'user');
+  assert.deepEqual(result.ops, [{ op: 'update_dish', id: '22222222-2222-4222-8222-222222222222', price: 1200 }]);
+  assert.equal(row(rows[0]).status, 'ok');
+});
+
+test('a Claude refusal is recorded and treated as no answer', async () => {
+  const { rows, DB } = harness(() => claudeReply([{ type: 'text', text: '' }], undefined, { stop_reason: 'refusal' }));
+  const env = { ANTHROPIC_API_KEY: 'a', DB };
+  await assert.rejects(extractMenu(env, image, { account: 'acc' }, claude(env)), { status: 422 });
+  assert.equal(row(rows[0]).status, 'refusal');
+});
+
+test('Haiku is sent without the refusal fallback, which it does not support', async () => {
+  const { requests, DB } = harness(() => claudeReply([{ type: 'text', text: JSON.stringify({ sections: [] }) }]));
+  const env = { ANTHROPIC_API_KEY: 'a', DB };
+  assert.deepEqual(await extractMenu(env, image, {}, claude(env, 'claude-haiku-5-5')), []);
+  assert.equal(requests[0].body.fallbacks, undefined);
+  assert.equal(new Headers(requests[0].init.headers).get('anthropic-beta'), null);
+});

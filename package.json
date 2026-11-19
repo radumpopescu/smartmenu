@@ -10,6 +10,11 @@
     "check": "for file in src/*.js public/*.js public/guest/*.js public/studio/*.js scripts/*.mjs; do node --check \"$file\" || exit 1; done && node --test test/*.test.js",
     "deploy": "wrangler deploy"
   },
-  "dependencies": { "qrcode-generator": "2.0.4" },
-  "devDependencies": { "wrangler": "^4.0.0" }
+  "dependencies": {
+    "@anthropic-ai/sdk": "1.10.0",
+    "qrcode-generator": "2.0.4"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
 }

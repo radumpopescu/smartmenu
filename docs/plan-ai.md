@@ -25,6 +25,9 @@ Checked against the providers' documentation on 2026-11-12. Prices are US dollar
 
 | Model | Used for | Input | Cached input | Output |
 | --- | --- | --- | --- | --- |
+| `claude-opus-5-5` (Anthropic) | assistant, menu reading | 4.00 | 0.20 | 20.00 |
+| `claude-sonnet-5-5` (Anthropic) | assistant, menu reading | 2.00 | 0.10 | 10.00 |
+| `claude-haiku-5-5` (Anthropic) | assistant, menu reading | 0.10 | 0.01 | 0.50 |
 | `grok-4.20-non-reasoning` (xAI) | assistant | 1.25 | 0.20 | 2.50 |
 | `grok-4.3` (xAI) | assistant, menu reading | 1.25 | 0.20 | 2.50 |
 | `gpt-6-luna` (OpenAI) | assistant, menu reading | 0.10 | 0.01 | 0.50 |
@@ -41,7 +44,9 @@ Photo edits: `gpt-image-2.5-sunburst` at 5.00 text in, 8.00 image in, 30.00 imag
 
 Not confirmed in the documentation: strict structured output on `gpt-6.1-terra`, `gpt-6.1-sol` and `gpt-6-astra` (confirmed for `gpt-6-luna`), how xAI bills image input, and whether a Realtime session with microphone input and text-only output is officially supported (the two are configured separately and nothing forbids it). The first real call to each settles it.
 
-Defaults when nothing is set: the assistant and menu reading use Grok if its key is present, otherwise `gpt-6-luna`. Voice uses `gpt-realtime-2.1-mini`. Photo edits use `gpt-image-2.5-sunburst`. When a feature is explicitly set to a provider whose key is missing, the request fails with a message naming the missing key. It does not silently use another provider, because that would make the cost figures misleading.
+Claude cache writes cost 1.25 times the input price, and Claude Haiku 5.5 costs five times as much for prompts over 100,000 tokens (checked 2026-11-19).
+
+Defaults when nothing is set: the assistant and menu reading use Claude Opus 5.5 if its key is present, then Grok, then `gpt-6-luna`. Voice uses `gpt-realtime-2.1-mini`. Photo edits use `gpt-image-2.5-sunburst`. When a feature is explicitly set to a provider whose key is missing, the request fails with a message naming the missing key. It does not silently use another provider, because that would make the cost figures misleading.
 
 ## The contract
 
